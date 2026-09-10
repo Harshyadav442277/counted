@@ -18,7 +18,21 @@ import { readKey } from "./env.js";
  */
 const [tool = "verify", subject = ""] = process.argv.slice(2);
 const pk = readKey("TEST_PRIVATE_KEY", "AGENT_PRIVATE_KEY");
-const base = (process.env["PUBLIC_URL"] ?? "http://localhost:3000").replace(/\/+$/, "");
+// TARGET_URL first, because PUBLIC_URL in a local .env says where the *dev server*
+// thinks it lives, and a local run with ALLOW_UNPAID answers 200 with no payment at
+// all. That is a false pass: rule B5 says nothing is proven without a mainnet hash.
+const base = (process.env["TARGET_URL"] ?? process.env["PUBLIC_URL"] ?? "http://localhost:3000").replace(/\/+$/, "");
+if (/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])/i.test(base) && process.env["ALLOW_LOCAL_TARGET"] !== "yes") {
+  throw new Error(
+    [
+      `Refusing to run the settlement test against ${base}.`,
+      `  A local server can answer without settling anything, so a pass here proves nothing.`,
+      `  Point it at the deployed service instead:`,
+      `      PowerShell:  $env:TARGET_URL = 'https://counted-gamma.vercel.app'`,
+      `  Set ALLOW_LOCAL_TARGET=yes only to exercise the plumbing, never to claim a result.`,
+    ].join(String.fromCharCode(10)),
+  );
+}
 const rpc = process.env["RPC_URL"] ?? "https://forno.celo.org";
 
 const account = privateKeyToAccount(pk);
@@ -30,7 +44,8 @@ const fetchWithPay = wrapFetchWithPayment(fetch, client);
 
 const param = tool === "tagcheck" ? "tx" : "wallet";
 const url = `${base}/api/${tool}?${param}=${encodeURIComponent(subject)}`;
-console.log(`payer: ${account.address}`);
+console.log(`target: ${base}`);
+console.log(`payer:  ${account.address}`);
 console.log(`GET ${url}`);
 const res = await fetchWithPay(url, { headers: { accept: "application/json" } });
 console.log(`status: ${res.status}`);
