@@ -6,6 +6,7 @@ import {
   WINDOW_END,
   WINDOW_START,
   WINDOW_START_BLOCK,
+  txInputs,
   usdFor,
 } from "./chain.js";
 import { addressInfo, tokenTransfers, transaction, transactions, type Transfer, type Tx } from "./explorer.js";
@@ -338,12 +339,17 @@ export async function auditProject(
     .filter((h) => !x402ByHash.get(h) && !inputByHash.has(h))
     .sort((a, b) => (usdByHashAll.get(b) ?? 0) - (usdByHashAll.get(a) ?? 0))
     .slice(0, INPUT_FETCH_CAP);
-  const fetched = await pool(missing, 5, (h) => transaction(h).catch(() => null));
-  missing.forEach((h, i) => {
-    const f = fetched[i];
+  // Batched over JSON-RPC first; the explorer is the fallback for anything the node did not return.
+  const viaRpc = await txInputs(missing).catch(() => new Map<string, { from: string; input: string } | null>());
+  const stillMissing = missing.filter((h) => !viaRpc.get(h));
+  const fetched = await pool(stillMissing, 4, (h) => transaction(h).catch(() => null));
+  const fetchedByHash = new Map(stillMissing.map((h, i) => [h, fetched[i] ?? null]));
+  for (const h of missing) {
+    const r = viaRpc.get(h);
+    const f = r ? { from: r.from, rawInput: r.input } : fetchedByHash.get(h) ?? null;
     inputByHash.set(h, f?.rawInput ?? null);
     if (f && isX402Tx(f)) x402ByHash.set(h, true);
-  });
+  }
   const attribution = new Map<string, Attribution>();
   const otherCodes = new Set<string>();
   for (const h of hashes) {

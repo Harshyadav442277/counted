@@ -117,6 +117,29 @@ export function publicClient(): ReturnType<typeof makeClient> {
   return client;
 }
 
+function makeBatchClient() {
+  // JSON-RPC batching: hundreds of getTransaction calls become a few HTTP requests.
+  return createPublicClient({ chain: celo, transport: http(config().RPC_URL, { timeout: 30_000, batch: { batchSize: 100, wait: 10 } }) });
+}
+
+let batchClient: ReturnType<typeof makeBatchClient> | null = null;
+
+/** Sender and calldata for many transactions at once. Missing or failed hashes map to null. */
+export async function txInputs(hashes: readonly string[]): Promise<Map<string, { from: string; input: string } | null>> {
+  const c = (batchClient ??= makeBatchClient());
+  const out = new Map<string, { from: string; input: string } | null>();
+  const results = await Promise.all(
+    hashes.map((h) =>
+      c
+        .getTransaction({ hash: h as Hex })
+        .then((t) => ({ from: t.from.toLowerCase(), input: t.input }))
+        .catch(() => null),
+    ),
+  );
+  hashes.forEach((h, i) => out.set(h, results[i] ?? null));
+  return out;
+}
+
 export function isAddress(v: unknown): v is Address {
   return typeof v === "string" && /^0x[0-9a-fA-F]{40}$/.test(v);
 }
