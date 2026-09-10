@@ -1,5 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { config, paymentsEnabled, resetConfigForTests } from "../src/config.js";
+import { signChat, verifyChat } from "../src/core/ids.js";
+
+describe("signed chat tokens", () => {
+  it("round-trips and rejects tampering", () => {
+    const t = signChat(123456789, "salt-a");
+    expect(t).toMatch(/^123456789\.[0-9a-f]{24}$/);
+    expect(verifyChat(t, "salt-a")).toBe("123456789");
+    expect(verifyChat(t, "salt-b")).toBeNull();
+    expect(verifyChat(t.replace("123456789", "987654321"), "salt-a")).toBeNull();
+    expect(verifyChat("123456789", "salt-a")).toBeNull();
+    expect(verifyChat(undefined, "salt-a")).toBeNull();
+    expect(verifyChat(signChat(-100200300, "s"), "s")).toBe("-100200300");
+  });
+});
 import { paymentFromHeaders, paymentOptions, priceUsd, routesConfig, settlementFromHeader } from "../src/core/x402.js";
 
 const WALLET = "0x1111111111111111111111111111111111111111";

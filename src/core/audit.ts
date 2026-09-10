@@ -18,6 +18,8 @@ import { decodeTag, judgeTag, type TagVerdict } from "./tags.js";
  *   2. first-funder collapse - was the wallet first funded by the project itself
  *   3. spawn-window          - wallets born together are one script, not customers
  *   4. own wallets           - a project's own wallets are never its users
+ * and, before any of that, attribution: only transactions carrying the project's
+ * ERC-8021 tag, or x402 settlements to its registered wallet, exist for the board.
  * Nothing here is authoritative; the organisers' queries are. It is the same test,
  * run early enough to act on.
  */
@@ -61,10 +63,7 @@ async function celoscanFirst(wallet: string, key: string): Promise<{ at: string;
 
 /** Earliest known event for a wallet born inside the window, by paging its short history. */
 async function freshWalletOrigin(wallet: string): Promise<{ at: string; from: string; to: string; capped: boolean } | null> {
-  const [tr, tx] = await Promise.all([
-    tokenTransfers(wallet, { maxPages: 6 }),
-    transactions(wallet, { maxPages: 6 }),
-  ]);
+  const [tr, tx] = await Promise.all([tokenTransfers(wallet, { maxPages: 6 }), transactions(wallet, { maxPages: 6 })]);
   const events: Array<{ at: string; from: string; to: string }> = [
     ...tr.items.map((t) => ({ at: t.at, from: t.from, to: t.to })),
     ...tx.items.filter((t) => t.value !== "0" || t.to === wallet).map((t) => ({ at: t.at, from: t.from, to: t.to ?? "" })),
@@ -144,21 +143,7 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
   if (verifiedUser) reasons.push("Counts as a verified user: independent, pre-existing, not a contract.");
   else if (countsAsSigner) reasons.push("Counts as a signer/authoriser and as a counterparty, but not as a verified user.");
 
-  return {
-    wallet,
-    isContract: info.isContract,
-    name: info.name,
-    activeBeforeWindow,
-    activeInLookback,
-    lastActivityBeforeWindow: latestBefore,
-    firstSeen,
-    firstFunder,
-    firstFunderResolved,
-    flags,
-    verifiedUser,
-    countsAsSigner,
-    reasons,
-  };
+  return { wallet, isContract: info.isContract, name: info.name, activeBeforeWindow, activeInLookback, lastActivityBeforeWindow: latestBefore, firstSeen, firstFunder, firstFunderResolved, flags, verifiedUser, countsAsSigner, reasons };
 }
 
 export interface TagCheck {
@@ -179,15 +164,7 @@ export async function tagCheck(hash: string, expected: string | null): Promise<T
   const tx = await transaction(hash);
   if (!tx) {
     return {
-      hash,
-      found: false,
-      at: null,
-      from: null,
-      to: null,
-      status: null,
-      method: null,
-      inWindow: false,
-      submittedByFacilitator: false,
+      hash, found: false, at: null, from: null, to: null, status: null, method: null, inWindow: false, submittedByFacilitator: false,
       tag: judgeTag(null, expected),
       notes: ["Transaction not found on Celo mainnet. Testnet activity counts for nothing."],
     };
@@ -201,6 +178,22 @@ export async function tagCheck(hash: string, expected: string | null): Promise<T
   if (submittedByFacilitator) notes.push("Submitted by the x402 facilitator relayer. Settlements cannot carry a tag; they are attributed to the registered payTo wallet instead, so make sure that wallet is on your registration.");
   if (tx.status && tx.status !== "ok") notes.push(`Transaction status: ${tx.status}. Failed transactions move nothing.`);
   return { hash, found: true, at: tx.at, from: tx.from, to: tx.to, status: tx.status, method: tx.method, inWindow, submittedByFacilitator, tag, notes };
+}
+
+/** How the board sees one transaction. */
+export type Attribution = "x402" | "tagged" | "other-tag" | "none" | "unknown";
+
+/**
+ * Attribution of a transaction: an x402 settlement (relayer-submitted, attributed by
+ * wallet), a transaction whose calldata carries the project's tag, a different tag,
+ * nothing, or unknown when the calldata could not be fetched.
+ */
+export function classifyTx(o: { x402: boolean; codes: string[] | null; tag: string | null }): Attribution {
+  if (o.x402) return "x402";
+  if (o.codes === null) return "unknown";
+  if (o.codes.length === 0) return "none";
+  if (o.tag === null) return "tagged";
+  return o.codes.map(lower).includes(o.tag) ? "tagged" : "other-tag";
 }
 
 export interface CounterpartyReport {
@@ -217,6 +210,14 @@ export interface CounterpartyReport {
 }
 
 export interface AuditMetrics {
+  attributedTxs: number;
+  x402Txs: number;
+  taggedTxs: number;
+  unattributedTxs: number;
+  unattributedUsd: number;
+  unattributedCounterparties: number;
+  unknownAttributionTxs: number;
+  otherCodesSeen: string[];
   allCounterparties: number;
   contracts: number;
   signers: number;
@@ -230,7 +231,6 @@ export interface AuditMetrics {
   verifiedSigners: number;
   signerGate: number;
   adjustedUsd: number;
-  x402Settlements: number;
   stablecoins: string[];
   usatOverX402: boolean;
   taggedOwnTxs: number;
@@ -242,7 +242,7 @@ export interface AuditReport {
   ownWallets: string[];
   tag: string | null;
   window: { start: string; end: string; lookbackStart: string };
-  scanned: { transfers: number; nativeTxs: number; capped: boolean; counterpartiesInspected: number; counterpartiesTotal: number };
+  scanned: { transfers: number; nativeTxs: number; uniqueTxs: number; capped: boolean; counterpartiesInspected: number; counterpartiesTotal: number };
   counterparties: CounterpartyReport[];
   metrics: AuditMetrics;
   hints: string[];
@@ -278,6 +278,9 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   return out;
 }
 
+/** Calldata fetches per audit for transfers whose transaction is not in the wallet's own tx list. */
+const INPUT_FETCH_CAP = 150;
+
 export async function auditProject(
   payToRaw: string,
   opts: { ownWallets?: string[]; tag?: string | null; maxCounterparties?: number } = {},
@@ -286,7 +289,7 @@ export async function auditProject(
   const ownList = [payTo, ...(opts.ownWallets ?? []).map(lower)];
   const own = new Set(ownList);
   const tag = opts.tag?.toLowerCase() ?? null;
-  const maxCp = opts.maxCounterparties ?? config().AUDIT_MAX_COUNTERPARTIES;
+  const maxCp = Math.min(200, opts.maxCounterparties ?? config().AUDIT_MAX_COUNTERPARTIES);
 
   const [info, tr, tx] = await Promise.all([
     addressInfo(payTo).catch(() => ({ address: payTo, isContract: false, name: null, celoUsd: null })),
@@ -301,19 +304,41 @@ export async function auditProject(
   const transfers: Transfer[] = tr.items.filter((t) => inWindow(t.at));
   const natives: Tx[] = tx.items.filter((t) => inWindow(t.at));
 
+  // 1. Attribution per transaction hash.
+  const x402ByHash = new Map<string, boolean>();
+  for (const t of transfers) if (/withauthorization/i.test(t.method ?? "")) x402ByHash.set(t.hash, true);
+  const inputByHash = new Map<string, string | null>();
+  for (const t of natives) inputByHash.set(t.hash, t.rawInput);
+  const hashes = new Set<string>([...transfers.map((t) => t.hash), ...natives.map((t) => t.hash)]);
+  const missing = [...hashes].filter((h) => !x402ByHash.get(h) && !inputByHash.has(h)).slice(0, INPUT_FETCH_CAP);
+  const fetched = await pool(missing, 4, (h) => transaction(h).catch(() => null));
+  missing.forEach((h, i) => inputByHash.set(h, fetched[i]?.rawInput ?? null));
+  const attribution = new Map<string, Attribution>();
+  const otherCodes = new Set<string>();
+  for (const h of hashes) {
+    const input = inputByHash.get(h);
+    const codes = input === undefined ? null : (decodeTag(input)?.codes ?? []);
+    const a = classifyTx({ x402: Boolean(x402ByHash.get(h)), codes, tag });
+    attribution.set(h, a);
+    if (a === "other-tag" && codes) for (const c of codes) otherCodes.add(c);
+  }
+  const attributed = (h: string) => {
+    const a = attribution.get(h);
+    return a === "x402" || a === "tagged";
+  };
+
+  // 2. Legs, aggregated per counterparty, attributed and not.
   const aggs = new Map<string, Agg>();
+  const unattributed = { hashes: new Set<string>(), usdByHash: new Map<string, number>(), counterparties: new Set<string>() };
   const touch = (cp: string, hash: string, at: string, usd: number | null, token: string, x402: boolean) => {
     if (own.has(cp) || cp === payTo) return;
-    const a = aggs.get(cp) ?? {
-      hashes: new Set<string>(),
-      days: new Set<string>(),
-      firstAt: at,
-      lastAt: at,
-      usdByHash: new Map<string, number>(),
-      unpriced: new Set<string>(),
-      tokens: new Set<string>(),
-      x402: new Set<string>(),
-    };
+    if (!attributed(hash)) {
+      unattributed.hashes.add(hash);
+      unattributed.counterparties.add(cp);
+      if (usd !== null) unattributed.usdByHash.set(hash, Math.max(unattributed.usdByHash.get(hash) ?? 0, usd));
+      return;
+    }
+    const a = aggs.get(cp) ?? { hashes: new Set<string>(), days: new Set<string>(), firstAt: at, lastAt: at, usdByHash: new Map<string, number>(), unpriced: new Set<string>(), tokens: new Set<string>(), x402: new Set<string>() };
     a.hashes.add(hash);
     a.days.add(at.slice(0, 10));
     if (at < a.firstAt) a.firstAt = at;
@@ -325,7 +350,6 @@ export async function auditProject(
     aggs.set(cp, a);
   };
 
-  let x402Settlements = 0;
   const stables = new Set<string>();
   let usatOverX402 = false;
   for (const t of transfers) {
@@ -334,10 +358,9 @@ export async function auditProject(
     const rate = usdFor(t.token.address, t.token.symbol, celoUsd);
     const amount = Number(t.value) / 10 ** t.token.decimals;
     const usd = rate === null ? null : amount * rate;
-    const x402 = /withauthorization/i.test(t.method ?? "");
-    if (x402) x402Settlements += 1;
+    const x402 = Boolean(x402ByHash.get(t.hash));
     const stable = NAMED_STABLES[t.token.address];
-    if (stable) stables.add(stable);
+    if (stable && attributed(t.hash)) stables.add(stable);
     if (x402 && stable === "USAT") usatOverX402 = true;
     touch(cp, t.hash, t.at, usd, t.token.symbol ?? t.token.address, x402);
   }
@@ -345,8 +368,7 @@ export async function auditProject(
   let untaggedOwnTxs = 0;
   for (const t of natives) {
     if (t.from === payTo) {
-      const decoded = decodeTag(t.rawInput);
-      if (tag && decoded?.codes.map(lower).includes(tag)) taggedOwnTxs += 1;
+      if (attribution.get(t.hash) === "tagged") taggedOwnTxs += 1;
       else untaggedOwnTxs += 1;
     }
     if (t.value === "0" || !t.to) continue;
@@ -355,6 +377,7 @@ export async function auditProject(
     touch(cp, t.hash, t.at, usd, "CELO", false);
   }
 
+  // 3. Verify the counterparties that matter most.
   const ranked = [...aggs.entries()]
     .map(([address, a]) => ({ address, a, usd: [...a.usdByHash.values()].reduce((x, y) => x + y, 0) }))
     .sort((x, y) => y.usd - x.usd || y.a.hashes.size - x.a.hashes.size);
@@ -374,6 +397,7 @@ export async function auditProject(
     verdict: i < inspect.length ? (verdicts[i] ?? null) : null,
   }));
 
+  // 4. Metrics, the way the board computes them.
   const judged = counterparties.filter((c) => c.verdict);
   const contracts = judged.filter((c) => c.verdict!.isContract).length;
   const signers = judged.filter((c) => c.verdict!.countsAsSigner).length;
@@ -385,7 +409,16 @@ export async function auditProject(
   const grossUsd = counterparties.reduce((s, c) => s + c.usd, 0);
   const independentUsd = verified.reduce((s, c) => s + c.usd, 0);
   const gate = signerGate(verified.length);
+  const attributedHashes = [...hashes].filter(attributed);
   const metrics: AuditMetrics = {
+    attributedTxs: attributedHashes.length,
+    x402Txs: attributedHashes.filter((h) => attribution.get(h) === "x402").length,
+    taggedTxs: attributedHashes.filter((h) => attribution.get(h) === "tagged").length,
+    unattributedTxs: unattributed.hashes.size,
+    unattributedUsd: Number([...unattributed.usdByHash.values()].reduce((x, y) => x + y, 0).toFixed(4)),
+    unattributedCounterparties: unattributed.counterparties.size,
+    unknownAttributionTxs: [...hashes].filter((h) => attribution.get(h) === "unknown").length,
+    otherCodesSeen: [...otherCodes],
     allCounterparties: counterparties.length,
     contracts,
     signers,
@@ -399,16 +432,26 @@ export async function auditProject(
     verifiedSigners: verified.length,
     signerGate: Number(gate.toFixed(3)),
     adjustedUsd: Number((independentUsd * gate).toFixed(4)),
-    x402Settlements,
     stablecoins: [...stables],
     usatOverX402,
     taggedOwnTxs,
     untaggedOwnTxs,
   };
 
+  // 5. What would change the rank.
   const hints: string[] = [];
-  if (counterparties.length === 0) hints.push("No counterparties inside the window yet. Nothing can rank until someone else's wallet transacts with this one.");
-  if (verified.length === 0 && counterparties.length > 0) hints.push("Zero verified users: none of the counterparties inspected had Celo activity in the 60 days before 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
+  if (hashes.size === 0) hints.push("No transactions inside the window yet. Nothing can rank until someone else's wallet transacts with this one.");
+  if (metrics.attributedTxs === 0 && hashes.size > 0) {
+    hints.push(tag
+      ? `None of the ${hashes.size} transactions in the window are attributed: no calldata carries ${tag} and none is an x402 settlement. The board reads zero for this wallet.`
+      : `None of the ${hashes.size} transactions in the window carry an ERC-8021 tag or are x402 settlements. Pass ?tag=celo_… to check for your code; the board reads zero without attribution.`);
+  }
+  if (metrics.unattributedTxs > 0) {
+    hints.push(`${metrics.unattributedTxs} transactions worth about $${metrics.unattributedUsd.toFixed(2)} with ${metrics.unattributedCounterparties} counterparties are invisible to the board: no tag in the calldata and not x402 settlements. A tag cannot be added after sending.`);
+  }
+  if (metrics.otherCodesSeen.length > 0 && tag) hints.push(`Some transactions carry other codes (${metrics.otherCodesSeen.join(", ")}) instead of ${tag}. Only the assigned code is credited.`);
+  if (metrics.unknownAttributionTxs > 0) hints.push(`${metrics.unknownAttributionTxs} transactions could not be classified (calldata fetch cap of ${INPUT_FETCH_CAP} reached); they are excluded from the totals above.`);
+  if (metrics.attributedTxs > 0 && verified.length === 0) hints.push("Zero verified users: none of the counterparties inspected had Celo activity in the 60 days before 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
   if (verified.length > 0 && verified.length < 20) {
     const next = signerGate(verified.length + 5);
     hints.push(`Signer gate is ${gate.toFixed(2)} with ${verified.length} verified signers; five more would lift it to ${next.toFixed(2)} and adjusted volume from $${metrics.adjustedUsd.toFixed(2)} to $${(independentUsd * next).toFixed(2)}.`);
@@ -416,18 +459,18 @@ export async function auditProject(
   if (verified.length > 0 && verifiedReturning === 0) hints.push("No verified user has come back on a second UTC day. Returning users are the second ranking signal; give them a reason to return tomorrow.");
   if (fresh > 0) hints.push(`${fresh} of ${judged.length} inspected counterparties were born inside the window. They count as signers and counterparties, never as verified users.`);
   if (fundedByProject > 0) hints.push(`${fundedByProject} counterparties were first funded by your own wallets. The first-funder audit excludes them; do not count them.`);
-  if (x402Settlements > 0 && !usatOverX402) hints.push("You settle over x402 but not in USA₮. USA₮ settled over x402 is the highest-scoring combination for Best Stablecoin Adoption.");
-  if (x402Settlements === 0 && stables.size === 0) hints.push("No x402 settlements and no named stablecoin (USA₮, cNGN, wFIAT) flows: this wallet is not eligible for the stablecoin bounty as it stands.");
+  if (metrics.x402Txs > 0 && !usatOverX402) hints.push("You settle over x402 but not in USA₮. USA₮ settled over x402 is the highest-scoring combination for Best Stablecoin Adoption.");
+  if (metrics.attributedTxs > 0 && metrics.x402Txs === 0 && stables.size === 0) hints.push("No x402 settlements and no named stablecoin (USA₮, cNGN, wFIAT) in attributed flows: not eligible for the stablecoin bounty as it stands.");
   if (tag && taggedOwnTxs === 0 && untaggedOwnTxs > 0) hints.push(`${untaggedOwnTxs} transactions sent by this wallet carry no ${tag} suffix. Only tagged transactions and facilitator settlements are attributed; there is no backfill.`);
   if (tr.capped || tx.capped) hints.push("The explorer scan was capped; volumes are a lower bound.");
-  if (ranked.length > inspect.length) hints.push(`${ranked.length - inspect.length} smaller counterparties were not inspected (limit ${maxCp}).`);
+  if (ranked.length > inspect.length) hints.push(`${ranked.length - inspect.length} smaller counterparties were not inspected (limit ${maxCp}; pass ?max=… up to 200).`);
 
   return {
     payTo,
     ownWallets: ownList,
     tag,
     window: { start: new Date(WINDOW_START).toISOString(), end: new Date(WINDOW_END).toISOString(), lookbackStart: new Date(LOOKBACK_START).toISOString() },
-    scanned: { transfers: transfers.length, nativeTxs: natives.length, capped: tr.capped || tx.capped, counterpartiesInspected: inspect.length, counterpartiesTotal: ranked.length },
+    scanned: { transfers: transfers.length, nativeTxs: natives.length, uniqueTxs: hashes.size, capped: tr.capped || tx.capped, counterpartiesInspected: inspect.length, counterpartiesTotal: ranked.length },
     counterparties,
     metrics,
     hints,
@@ -438,10 +481,10 @@ export async function auditProject(
 /** The rules, as the product states them. Free, and the same text on every channel. */
 export const RULES = [
   "Only Celo mainnet activity between 28 Aug 00:00 and 14 Sep 09:00 GMT counts.",
+  "Attribution comes from the ERC-8021 tag in your calldata, or from x402 settlements to your registered wallet. A tag cannot be added after sending; untagged transfers are invisible to the board.",
   "A counterparty counts only if it is not one of your registered wallets, was not first funded by you or your dominant funder, and had Celo activity before 28 Aug (the scoring prelude scans about 60 days back).",
   "Track 1 (Value Moved) ranks adjusted volume: net per transaction, independent counterparties only, multiplied by a gate on distinct signers that reaches 1.0 at about 20.",
   "Track 2 (Real World Adoption) ranks verified users first, returning users (2+ distinct UTC days) second, distinct signers and EIP-3009 authorisers third. Money moved is irrelevant.",
   "Best Stablecoin Adoption uses the same signals among projects using USA₮, cNGN or Ripio wFIAT, or settling over the x402 facilitator. USA₮ settled over x402 scores highest.",
-  "Attribution comes from the ERC-8021 tag in your calldata, or from x402 settlements to your registered wallet. A tag cannot be added after sending.",
   "Drafts on the builders portal are registered but not eligible. Publish before the deadline.",
 ];

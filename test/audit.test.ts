@@ -1,5 +1,22 @@
 import { describe, expect, it } from "vitest";
-import { signerGate, RULES } from "../src/core/audit.js";
+import { classifyTx, signerGate, RULES } from "../src/core/audit.js";
+
+describe("transaction attribution", () => {
+  it("credits x402 settlements regardless of calldata", () => {
+    expect(classifyTx({ x402: true, codes: [], tag: "celo_aaaaaaaaaaaa" })).toBe("x402");
+    expect(classifyTx({ x402: true, codes: null, tag: null })).toBe("x402");
+  });
+  it("credits only the assigned tag, and any tag when none was given", () => {
+    expect(classifyTx({ x402: false, codes: ["celo_aaaaaaaaaaaa"], tag: "celo_aaaaaaaaaaaa" })).toBe("tagged");
+    expect(classifyTx({ x402: false, codes: ["CELO_AAAAAAAAAAAA"], tag: "celo_aaaaaaaaaaaa" })).toBe("tagged");
+    expect(classifyTx({ x402: false, codes: ["celo_bbbbbbbbbbbb"], tag: "celo_aaaaaaaaaaaa" })).toBe("other-tag");
+    expect(classifyTx({ x402: false, codes: ["celo_bbbbbbbbbbbb"], tag: null })).toBe("tagged");
+  });
+  it("marks untagged and unfetchable calldata honestly", () => {
+    expect(classifyTx({ x402: false, codes: [], tag: "celo_aaaaaaaaaaaa" })).toBe("none");
+    expect(classifyTx({ x402: false, codes: null, tag: "celo_aaaaaaaaaaaa" })).toBe("unknown");
+  });
+});
 import { LOOKBACK_START, WINDOW_END, WINDOW_START, WINDOW_START_BLOCK, usdFor } from "../src/core/chain.js";
 
 describe("signer gate", () => {

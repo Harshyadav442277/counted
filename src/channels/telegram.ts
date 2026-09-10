@@ -5,6 +5,7 @@ import { RULES } from "../core/audit.js";
 import { isAddress, isTxHash } from "../core/chain.js";
 import { dashboardUrl, findByTag, NoDuneKey, QUERIES, trackRows } from "../core/dune.js";
 import { esc, standingHtml } from "../core/format.js";
+import { signChat } from "../core/ids.js";
 import { priceUsd } from "../core/x402.js";
 import type { AppEnv } from "./api.js";
 
@@ -45,7 +46,8 @@ function payLink(tool: "verify" | "tagcheck" | "audit", params: Record<string, s
   const u = new URL(`${publicUrl()}/pay`);
   u.searchParams.set("tool", tool);
   for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
-  u.searchParams.set("chat", String(chatId));
+  // Signed, so only this chat can receive the result (see ids.ts).
+  u.searchParams.set("chat", signChat(chatId, config().HASH_SALT));
   return u.toString();
 }
 
@@ -167,6 +169,8 @@ export function telegramRoutes(app: Hono<AppEnv>): void {
   app.post("/telegram/webhook", async (c) => {
     const cfg = config();
     if (!cfg.TELEGRAM_BOT_TOKEN) return c.json({ error: "telegram is not configured" }, 503);
+    // Never accept unsigned updates: without the secret anyone could drive the bot.
+    if (!cfg.TELEGRAM_WEBHOOK_SECRET) return c.json({ error: "TELEGRAM_WEBHOOK_SECRET is not set; webhook disabled" }, 503);
     const b = getBot();
     botReady ??= b.init();
     await botReady;
@@ -178,9 +182,10 @@ export function telegramRoutes(app: Hono<AppEnv>): void {
 /** Operator action: point Telegram at this deployment and publish the command menu. */
 export async function installWebhook(base: string): Promise<unknown> {
   const cfg = config();
+  if (!cfg.TELEGRAM_WEBHOOK_SECRET) throw new Error("TELEGRAM_WEBHOOK_SECRET is required before installing the webhook");
   const b = getBot();
   const webhook = await b.api.setWebhook(`${base.replace(/\/+$/, "")}/telegram/webhook`, {
-    ...(cfg.TELEGRAM_WEBHOOK_SECRET ? { secret_token: cfg.TELEGRAM_WEBHOOK_SECRET } : {}),
+    secret_token: cfg.TELEGRAM_WEBHOOK_SECRET,
     allowed_updates: ["message"],
     drop_pending_updates: true,
   });

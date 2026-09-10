@@ -4,7 +4,7 @@ import { auditProject, RULES, tagCheck, verifyWallet, type AuditReport, type Tag
 import { isAddress, isTxHash } from "../core/chain.js";
 import { dashboardUrl, findByTag, NoDuneKey, QUERIES, trackRows } from "../core/dune.js";
 import { auditHtml, auditSummary, tagCheckHtml, tagCheckSummary, walletVerdictHtml, walletVerdictSummary } from "../core/format.js";
-import { newId } from "../core/ids.js";
+import { newId, verifyChat } from "../core/ids.js";
 import { getLedger } from "../core/ledger/index.js";
 import type { CallRow, Channel, Tool } from "../core/ledger/types.js";
 import { howToPay, paymentFromHeaders, priceUsd, settlementFromHeader, x402Middleware, type PaidTool } from "../core/x402.js";
@@ -35,19 +35,21 @@ export function settlementLogger(): (c: Context, next: () => Promise<void>) => P
     const result = (c as Context<AppEnv>).get("result");
     if (!result) return;
     const settlement = settlementFromHeader(c.res.headers.get("PAYMENT-RESPONSE"));
-    const payment = paymentFromHeaders((n) => c.req.header(n));
-    const paid = Boolean(settlement?.success);
+    const paid = Boolean(settlement?.success && settlement?.transaction);
+    // Payer, asset and amount are recorded only from a settlement the facilitator
+    // confirmed. The request header is client-supplied and never trusted on its own.
+    const payment = paid ? paymentFromHeaders((n) => c.req.header(n)) : null;
     const row: CallRow = {
-      id: settlement?.transaction ?? newId(),
+      id: paid ? settlement!.transaction! : newId(),
       at: new Date().toISOString(),
       channel: channelOf(c),
       tool: result.tool,
       subject: result.subject,
       paid,
-      payer: settlement?.payer ?? payment?.payer ?? null,
-      asset: payment?.assetSymbol ?? payment?.asset ?? null,
+      payer: paid ? settlement?.payer ?? payment?.payer ?? null : null,
+      asset: paid ? payment?.assetSymbol ?? payment?.asset ?? null : null,
       amountUsd: paid ? payment?.amountUsd ?? priceUsd(result.tool as PaidTool) : null,
-      settlementTx: settlement?.transaction ?? null,
+      settlementTx: paid ? settlement!.transaction : null,
       status: c.res.status < 400 ? "ok" : "error",
       summary: result.summary.slice(0, 200),
       durationMs: Date.now() - started,
@@ -88,9 +90,9 @@ async function bodyOrQuery(c: Context, key: string): Promise<string | undefined>
   return undefined;
 }
 
+/** The chat to notify, accepted only as a token the bot itself signed. */
 function chatParam(c: Context): string | undefined {
-  const chat = c.req.query("chat");
-  return chat && /^-?\d{3,20}$/.test(chat) ? chat : undefined;
+  return verifyChat(c.req.query("chat"), config().HASH_SALT) ?? undefined;
 }
 
 export function apiRoutes(app: Hono<AppEnv>): void {
@@ -134,8 +136,13 @@ export function apiRoutes(app: Hono<AppEnv>): void {
     const wallet = await bodyOrQuery(c, "wallet");
     if (!isAddress(wallet)) return bad(c, "Pass ?wallet=0x… (your registered payTo wallet). Optional ?own=0x…,0x… and ?tag=celo_….");
     const tag = (await bodyOrQuery(c, "tag")) ?? null;
+    const maxRaw = Number(c.req.query("max") ?? "");
     const startedAt = Date.now();
-    const r: AuditReport = await auditProject(wallet, { ownWallets: ownWalletsParam(c), tag });
+    const r: AuditReport = await auditProject(wallet, {
+      ownWallets: ownWalletsParam(c),
+      tag,
+      ...(Number.isInteger(maxRaw) && maxRaw >= 5 ? { maxCounterparties: Math.min(200, maxRaw) } : {}),
+    });
     const chatId = chatParam(c);
     (c as Context<AppEnv>).set("result", { tool: "audit", subject: wallet.toLowerCase(), summary: auditSummary(r), html: auditHtml(r, publicUrl()), startedAt, ...(chatId ? { chatId } : {}) });
     return c.json({ ok: true, tool: "audit", report: r });
