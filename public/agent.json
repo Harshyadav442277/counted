@@ -4,14 +4,33 @@
   "description": "Tells any Celo builder whether their on-chain activity actually counts on the Agents at Work leaderboard: verified users, returning users, signer gate, adjusted volume, attribution tags and stablecoin rails, reproduced from public explorer data. Every check is paid per request in USA₮, USDC or USD₮ over x402 on Celo mainnet. The agent pays its own gas in USA₮ and never holds CELO.",
   "image": "https://raw.githubusercontent.com/Harshyadav442277/counted/main/public/counted.svg",
   "services": [
-    { "name": "MCP", "endpoint": "https://counted-gamma.vercel.app/mcp", "version": "2025-06-18" },
-    { "name": "web", "endpoint": "https://counted-gamma.vercel.app", "version": "0.1.0" },
-    { "name": "x402", "endpoint": "https://counted-gamma.vercel.app/api/prices", "version": "2" }
+    {
+      "name": "MCP",
+      "endpoint": "https://counted-gamma.vercel.app/mcp",
+      "version": "2025-06-18"
+    },
+    {
+      "name": "web",
+      "endpoint": "https://counted-gamma.vercel.app",
+      "version": "0.1.0"
+    },
+    {
+      "name": "x402",
+      "endpoint": "https://counted-gamma.vercel.app/api/prices",
+      "version": "2"
+    }
   ],
   "x402Support": true,
   "active": true,
-  "registrations": [],
-  "supportedTrust": ["reputation"],
+  "registrations": [
+    {
+      "agentId": 9828,
+      "agentRegistry": "eip155:42220:0x8004A169FB4a3325136EB29fA0ceB6D2e539a432"
+    }
+  ],
+  "supportedTrust": [
+    "reputation"
+  ],
   "hackathon": {
     "event": "Celo Agents at Work Hackathon, 28 Aug to 14 Sep 2026",
     "repository": "https://github.com/Harshyadav442277/counted",
