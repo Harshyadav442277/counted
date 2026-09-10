@@ -42,7 +42,7 @@ export const TOKENS: Record<string, Token> = {
   },
   USDC: {
     symbol: "USDC",
-    address: "0xcEBA9300f2b948710d2653dD7B07f33A8B32118C",
+    address: "0xcebA9300f2b948710d2653dD7B07f33A8B32118C",
     decimals: 6,
     eip712: { name: "USDC", version: "2" },
     usd: 1,

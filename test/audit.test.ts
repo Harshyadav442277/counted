@@ -43,7 +43,7 @@ describe("window constants", () => {
 
 describe("usd pricing", () => {
   it("prices the three facilitator stablecoins and USA₮ at one dollar", () => {
-    expect(usdFor("0xcEBA9300f2b948710d2653dD7B07f33A8B32118C", "USDC", null)).toBe(1);
+    expect(usdFor("0xcebA9300f2b948710d2653dD7B07f33A8B32118C", "USDC", null)).toBe(1);
     expect(usdFor("0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e", "USD₮", null)).toBe(1);
     expect(usdFor("0xd2ab3c9a02dbbab236bfec45d1d755df4267f771", "USAT", null)).toBe(1);
   });
