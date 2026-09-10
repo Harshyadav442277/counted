@@ -285,6 +285,9 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
  */
 const INPUT_FETCH_CAP = 600;
 
+/** EIP-3009 selectors: transferWithAuthorization (v,r,s and bytes forms) and receiveWithAuthorization. */
+const X402_SELECTORS = new Set(["0xe3ee160e", "0xcf092995", "0xef55bec6"]);
+
 export async function auditProject(
   payToRaw: string,
   opts: { ownWallets?: string[]; tag?: string | null; maxCounterparties?: number } = {},
@@ -308,11 +311,19 @@ export async function auditProject(
   const transfers: Transfer[] = tr.items.filter((t) => inWindow(t.at));
   const natives: Tx[] = tx.items.filter((t) => inWindow(t.at));
 
-  // 1. Attribution per transaction hash.
+  // 1. Attribution per transaction hash. An x402 settlement is recognised by any of:
+  //    the explorer's decoded method name (not always present), the transaction
+  //    sender being the facilitator relayer, or an EIP-3009 function selector.
+  const relayer = lower(FACILITATOR_RELAYER);
+  const isX402Tx = (t: { from: string; rawInput: string | null }) =>
+    t.from === relayer || X402_SELECTORS.has((t.rawInput ?? "").slice(0, 10).toLowerCase());
   const x402ByHash = new Map<string, boolean>();
   for (const t of transfers) if (/withauthorization/i.test(t.method ?? "")) x402ByHash.set(t.hash, true);
   const inputByHash = new Map<string, string | null>();
-  for (const t of natives) inputByHash.set(t.hash, t.rawInput);
+  for (const t of natives) {
+    inputByHash.set(t.hash, t.rawInput);
+    if (isX402Tx(t)) x402ByHash.set(t.hash, true);
+  }
   const hashes = new Set<string>([...transfers.map((t) => t.hash), ...natives.map((t) => t.hash)]);
   const usdByHashAll = new Map<string, number>();
   for (const t of transfers) {
@@ -325,8 +336,12 @@ export async function auditProject(
     .filter((h) => !x402ByHash.get(h) && !inputByHash.has(h))
     .sort((a, b) => (usdByHashAll.get(b) ?? 0) - (usdByHashAll.get(a) ?? 0))
     .slice(0, INPUT_FETCH_CAP);
-  const fetched = await pool(missing, 6, (h) => transaction(h).catch(() => null));
-  missing.forEach((h, i) => inputByHash.set(h, fetched[i]?.rawInput ?? null));
+  const fetched = await pool(missing, 8, (h) => transaction(h).catch(() => null));
+  missing.forEach((h, i) => {
+    const f = fetched[i];
+    inputByHash.set(h, f?.rawInput ?? null);
+    if (f && isX402Tx(f)) x402ByHash.set(h, true);
+  });
   const attribution = new Map<string, Attribution>();
   const otherCodes = new Set<string>();
   for (const h of hashes) {
