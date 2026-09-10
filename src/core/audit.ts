@@ -219,6 +219,8 @@ export interface AuditMetrics {
   unknownAttributionTxs: number;
   otherCodesSeen: string[];
   allCounterparties: number;
+  /** Inspected counterparties the explorer could not answer for; their legs are excluded from the verified totals. */
+  unverifiedCounterparties: number;
   contracts: number;
   signers: number;
   verifiedUsers: number;
@@ -336,7 +338,7 @@ export async function auditProject(
     .filter((h) => !x402ByHash.get(h) && !inputByHash.has(h))
     .sort((a, b) => (usdByHashAll.get(b) ?? 0) - (usdByHashAll.get(a) ?? 0))
     .slice(0, INPUT_FETCH_CAP);
-  const fetched = await pool(missing, 8, (h) => transaction(h).catch(() => null));
+  const fetched = await pool(missing, 5, (h) => transaction(h).catch(() => null));
   missing.forEach((h, i) => {
     const f = fetched[i];
     inputByHash.set(h, f?.rawInput ?? null);
@@ -411,7 +413,12 @@ export async function auditProject(
     .map(([address, a]) => ({ address, a, usd: [...a.usdByHash.values()].reduce((x, y) => x + y, 0) }))
     .sort((x, y) => y.usd - x.usd || y.a.hashes.size - x.a.hashes.size);
   const inspect = ranked.slice(0, maxCp);
-  const verdicts = await pool(inspect, 3, (r) => verifyWallet(r.address, { ownWallets: ownList }).catch(() => null));
+  const verifyOnce = (address: string) => verifyWallet(address, { ownWallets: ownList });
+  const verdicts = await pool(inspect, 3, (r) =>
+    verifyOnce(r.address)
+      .catch(() => new Promise<void>((res) => setTimeout(res, 2000)).then(() => verifyOnce(r.address)))
+      .catch(() => null),
+  );
 
   const counterparties: CounterpartyReport[] = ranked.map((r, i) => ({
     address: r.address,
@@ -449,6 +456,7 @@ export async function auditProject(
     unknownAttributionTxs: [...hashes].filter((h) => attribution.get(h) === "unknown").length,
     otherCodesSeen: [...otherCodes],
     allCounterparties: counterparties.length,
+    unverifiedCounterparties: inspect.length - judged.length,
     contracts,
     signers,
     verifiedUsers: verified.length,
@@ -479,6 +487,7 @@ export async function auditProject(
     hints.push(`${metrics.unattributedTxs} transactions worth about $${metrics.unattributedUsd.toFixed(2)} with ${metrics.unattributedCounterparties} counterparties are invisible to the board: no tag in the calldata and not x402 settlements. A tag cannot be added after sending.`);
   }
   if (metrics.otherCodesSeen.length > 0 && tag) hints.push(`Some transactions carry other codes (${metrics.otherCodesSeen.join(", ")}) instead of ${tag}. Only the assigned code is credited.`);
+  if (metrics.unverifiedCounterparties > 0) hints.push(`${metrics.unverifiedCounterparties} of ${inspect.length} inspected counterparties could not be verified (explorer rate limit or timeout); their volume is left out of the independent total. Run the audit again in a few minutes.`);
   if (metrics.unknownAttributionTxs > 0) hints.push(`${metrics.unknownAttributionTxs} transactions could not be classified (calldata fetch cap of ${INPUT_FETCH_CAP} reached); they are excluded from the totals above.`);
   if (metrics.attributedTxs > 0 && verified.length === 0) hints.push("Zero verified users: none of the counterparties inspected had Celo activity in the 60 days before 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
   if (verified.length > 0 && verified.length < 20) {

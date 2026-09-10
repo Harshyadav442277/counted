@@ -64,14 +64,20 @@ async function getJson<T>(path: string, params: Record<string, string | number |
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) return hit.value as T;
   let lastErr: Error | null = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
     try {
       const res = await fetch(key, {
         headers: { accept: "application/json", "user-agent": "counted/0.1 (+https://github.com/Harshyadav442277/counted)" },
         signal: AbortSignal.timeout(15_000),
       });
       if (res.status === 404) return { items: [], next_page_params: null } as unknown as T;
-      if (res.status === 429 || res.status >= 500) throw new Error(`explorer ${res.status}`);
+      if (res.status === 429) {
+        // Public explorer rate limit: back off hard rather than fail the audit.
+        lastErr = new Error("explorer 429");
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      if (res.status >= 500) throw new Error(`explorer ${res.status}`);
       if (!res.ok) throw new Error(`explorer ${res.status} for ${path}`);
       const json = (await res.json()) as T;
       if (cache.size > 800) cache.clear();
@@ -79,7 +85,7 @@ async function getJson<T>(path: string, params: Record<string, string | number |
       return json;
     } catch (e) {
       lastErr = e as Error;
-      await new Promise((r) => setTimeout(r, 400 * (attempt + 1)));
+      await new Promise((r) => setTimeout(r, 500 * 2 ** attempt));
     }
   }
   throw lastErr ?? new Error("explorer unreachable");

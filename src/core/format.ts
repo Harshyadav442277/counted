@@ -73,7 +73,7 @@ export function auditHtml(r: AuditReport, publicUrl?: string): string {
     "",
     `<b>Track 2 signals</b>`,
     `verified users: <b>${m.verifiedUsers}</b> · returning (2+ days): <b>${m.returning}</b> · verified &amp; returning: <b>${m.verifiedReturning}</b>`,
-    `signers/authorisers: ${m.signers} · all counterparties: ${m.allCounterparties} · contracts: ${m.contracts} · fresh wallets: ${m.fresh} · funded by you: ${m.fundedByProject}`,
+    `signers/authorisers: ${m.signers} · all counterparties: ${m.allCounterparties} · contracts: ${m.contracts} · fresh wallets: ${m.fresh} · funded by you: ${m.fundedByProject}${m.unverifiedCounterparties ? ` · <b>not verified: ${m.unverifiedCounterparties}</b>` : ""}`,
     "",
     `<b>Track 1 signals</b>`,
     `gross: $${m.grossUsd.toFixed(2)} · independent: $${m.independentUsd.toFixed(2)} · signer gate: ${m.signerGate.toFixed(2)} (${m.verifiedSigners}/20) · <b>adjusted: $${m.adjustedUsd.toFixed(2)}</b>`,
