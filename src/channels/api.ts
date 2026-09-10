@@ -184,18 +184,28 @@ export function apiRoutes(app: Hono<AppEnv>): void {
     return c.json({ ledger: getLedger().kind, stats, rows });
   });
 
+  // `ok` is whether the service can do the job it sells: quote a price and settle it.
+  // An ephemeral ledger and a missing Dune key lose history and the /standing answer,
+  // which is worth reporting, but a checker reading the status code should not be told
+  // a service that is taking payments is down.
   app.get("/api/health", async (c) => {
     const cfg = config();
     const ledger = getLedger();
     const stats = await ledger.stats().catch(() => null);
-    const ok = paymentsEnabled(cfg) && ledger.kind === "postgres";
+    const ok = paymentsEnabled(cfg);
+    const degraded: string[] = [];
+    if (ledger.kind !== "postgres") degraded.push("ledger is in memory: paid calls are lost on a cold start (set DATABASE_URL)");
+    if (!cfg.DUNE_API_KEY) degraded.push("DUNE_API_KEY is not set: /standing answers from the dashboard link only");
+    if (!cfg.TELEGRAM_BOT_TOKEN) degraded.push("no Telegram bot token: the bot channel is off");
     return c.json(
       {
         ok,
+        degraded,
         payments: paymentsEnabled(cfg),
         payTo: cfg.AGENT_WALLET ?? null,
         tag: cfg.ATTRIBUTION_TAG ?? null,
         ledger: ledger.kind,
+        ledgerDurable: ledger.kind === "postgres",
         telegram: Boolean(cfg.TELEGRAM_BOT_TOKEN),
         dune: Boolean(cfg.DUNE_API_KEY),
         calls: stats?.calls ?? null,
