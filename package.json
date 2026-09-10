@@ -2,18 +2,21 @@
   "name": "counted",
   "version": "0.1.0",
   "private": true,
-  "description": "Counted: tells any Celo builder whether their on-chain activity actually counts, paid per check in USA₮ over x402. Celo Agents at Work Hackathon, September 2026.",
+  "description": "Counted: tells any Celo builder whether their on-chain activity actually counts, paid per check in USA\u20ae over x402. Celo Agents at Work Hackathon, September 2026.",
   "type": "module",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
-    "dev": "tsx watch src/server.ts",
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/server.ts",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "e2e": "playwright test",
     "register:8004": "tsx scripts/register-8004.ts",
     "tag:verify": "tsx scripts/verify-tag.ts",
-    "buy:test": "tsx scripts/pay-test.ts"
+    "buy:test": "tsx scripts/pay-test.ts",
+    "start": "node --env-file-if-exists=.env --import tsx src/server.ts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",
