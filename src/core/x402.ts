@@ -73,7 +73,11 @@ export function x402Middleware(): MiddlewareHandler | null {
     }),
   });
   const server = new x402ResourceServer(facilitator).register("eip155:*", new ExactEvmScheme());
-  middleware = paymentMiddleware(routesConfig(), server, undefined, undefined, false);
+  // The last argument is syncFacilitatorOnStart. It must stay on: with it off the
+  // server never fetches the facilitator's supported kinds, so every paid route 500s
+  // with "Facilitator does not support exact on eip155:42220". The sync is lazy and
+  // awaited on the first paid request, so it costs one round trip per cold start.
+  middleware = paymentMiddleware(routesConfig(), server, undefined, undefined, true);
   return middleware;
 }
 
