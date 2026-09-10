@@ -1,10 +1,11 @@
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
 import { readKey } from "./env.js";
+import { TOKENS } from "../src/core/chain.js";
 
 /**
  * Pay one of Counted's own routes from a wallet, end to end, and print the
@@ -42,6 +43,29 @@ const signer = toClientEvmSigner(account, publicClient);
 const client = new x402Client().register("eip155:42220", new ExactEvmScheme(signer));
 const fetchWithPay = wrapFetchWithPayment(fetch, client);
 
+const erc20 = parseAbi(["function balanceOf(address owner) view returns (uint256)"]);
+const balances = await Promise.all(
+  ["USAT", "USDC", "USDT"].map(async (k) => {
+    const t = TOKENS[k]!;
+    const raw = await publicClient.readContract({ address: t.address, abi: erc20, functionName: "balanceOf", args: [account.address] });
+    return { symbol: t.symbol, human: Number(raw) / 10 ** t.decimals };
+  }),
+);
+console.log(`funds:  ${balances.map((b) => `${b.human} ${b.symbol}`).join(" - ")}`);
+if (balances.every((b) => b.human === 0)) {
+  throw new Error(
+    [
+      `${account.address} holds none of the assets this service accepts.`,
+      `  An x402 client cannot sign a payment it has no balance for, so the request would`,
+      `  come back as a 402 challenge that never gets answered, which looks like a failure`,
+      `  of the service rather than an empty wallet.`,
+      `  Fund it with about 0.20 of USA-T, USDC or USD-T on Celo mainnet first. From the`,
+      `  agent wallet that is:`,
+      `      $env:SEND_CONFIRM = 'yes'; npm run send -- ${account.address} 0.20 USAT`,
+    ].join(String.fromCharCode(10)),
+  );
+}
+
 const param = tool === "tagcheck" ? "tx" : "wallet";
 const url = `${base}/api/${tool}?${param}=${encodeURIComponent(subject)}`;
 console.log(`target: ${base}`);
@@ -49,6 +73,12 @@ console.log(`payer:  ${account.address}`);
 console.log(`GET ${url}`);
 const res = await fetchWithPay(url, { headers: { accept: "application/json" } });
 console.log(`status: ${res.status}`);
+if (res.status === 402) {
+  console.log("");
+  console.log("No payment was made: the service asked for one and the client did not complete it.");
+  console.log("A 402 here is the challenge, not a settlement. Check the balances above cover the");
+  console.log("price, and that the wallet holds one of the exact assets the 402 lists.");
+}
 const pr = res.headers.get("PAYMENT-RESPONSE");
 if (pr) {
   const settlement = JSON.parse(Buffer.from(pr, "base64").toString("utf8")) as { success?: boolean; transaction?: string; payer?: string; network?: string };
