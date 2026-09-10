@@ -71,6 +71,33 @@ GET ${e(base)}/api/rules · /api/prices · /api/ledger · /api/health   free</pr
   return page("Counted — MCP and API", body);
 }
 
+/**
+ * `/pay?tool=verify` with no subject yet. `howToPay` hands that URL out over MCP and the
+ * site, so it has to be a usable page rather than a 400: ask for the thing that is
+ * missing instead of refusing the request.
+ */
+export function payPromptPage(o: { tool: "verify" | "tagcheck" | "audit"; tag: string | null }): string {
+  const wantsTx = o.tool === "tagcheck";
+  const label = { verify: "Verify a wallet", tagcheck: "Check a tag in a transaction", audit: "Audit a project wallet" }[o.tool];
+  const opts = (["verify", "tagcheck", "audit"] as const)
+    .map((t) => `<option value="${t}"${t === o.tool ? " selected" : ""}>${e({ verify: "Verify a wallet", tagcheck: "Check a tag in a transaction", audit: "Audit a project wallet" }[t])} ($${priceUsd(t).toFixed(2)})</option>`)
+    .join("");
+  const body = `
+<p class="lede">${e(label)} — $${priceUsd(o.tool).toFixed(2)}, settled in USA₮, USDC or USD₮ over x402 on Celo mainnet.</p>
+<p class="sub">One thing missing: ${wantsTx ? "the transaction to look at" : "the wallet to check"}. Paste it below and the payment page opens next.</p>
+<div class="panel"><h2>Run a check</h2>
+<form class="row" action="/pay" method="get">
+  <select name="tool">${opts}</select>
+  <input name="subject" autofocus required placeholder="${wantsTx ? "0x… transaction hash (64 hex)" : "0x… wallet address (40 hex)"}" pattern="${wantsTx ? "0x[0-9a-fA-F]{64}" : "0x[0-9a-fA-F]{40}"}">
+  <input name="tag" value="${e(o.tag ?? "")}" placeholder="celo_… (optional)">
+  <button type="submit">Continue to payment</button>
+</form>
+<p class="muted">Pay from a wallet that was active on Celo before 28 August: that is the one the leaderboard counts as a verified user.</p></div>
+<div class="panel"><h2>Prefer not to use a browser?</h2><pre>${e(howToPay(o.tool, publicUrl()).buyCurl)}</pre>
+<p class="muted">Or add the MCP server: <code>claude mcp add --transport http counted ${e(publicUrl())}/mcp</code></p></div>`;
+  return page(`Counted — ${label.toLowerCase()}`, body);
+}
+
 /** The browser pay page: connect a wallet, sign EIP-3009, let the facilitator settle, show the result. */
 export function payPage(o: { tool: "verify" | "tagcheck" | "audit"; params: Record<string, string>; chat: string | null }): string {
   const base = publicUrl();
