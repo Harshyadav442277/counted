@@ -1,9 +1,10 @@
 import { x402Client, wrapFetchWithPayment } from "@x402/fetch";
 import { ExactEvmScheme } from "@x402/evm/exact/client";
 import { toClientEvmSigner } from "@x402/evm";
-import { createPublicClient, http, type Hex } from "viem";
+import { createPublicClient, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
+import { readKey } from "./env.js";
 
 /**
  * Pay one of Counted's own routes from a wallet, end to end, and print the
@@ -16,8 +17,7 @@ import { celo } from "viem/chains";
  * use a separate test wallet, and log it in the Evidence table.
  */
 const [tool = "verify", subject = ""] = process.argv.slice(2);
-const pk = (process.env["TEST_PRIVATE_KEY"] ?? process.env["AGENT_PRIVATE_KEY"] ?? "").replace(/^(0x)?/, "0x") as Hex;
-if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) throw new Error("TEST_PRIVATE_KEY is required");
+const pk = readKey("TEST_PRIVATE_KEY", "AGENT_PRIVATE_KEY");
 const base = (process.env["PUBLIC_URL"] ?? "http://localhost:3000").replace(/\/+$/, "");
 const rpc = process.env["RPC_URL"] ?? "https://forno.celo.org";
 

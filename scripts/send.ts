@@ -2,6 +2,7 @@ import { toDataSuffix, verifyTx } from "@celo/attribution-tags";
 import { createPublicClient, createWalletClient, formatUnits, http, parseAbi, parseUnits, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { celo } from "viem/chains";
+import { readKey } from "./env.js";
 import { TOKENS } from "../src/core/chain.js";
 
 /**
@@ -30,8 +31,7 @@ if (!token) throw new Error(`unknown token ${symbolRaw}; try ${Object.keys(TOKEN
 if (!/^0x[0-9a-fA-F]{40}$/.test(toRaw)) throw new Error("usage: npm run send -- 0xRecipient <amount> [TOKEN] --yes");
 if (!/^\d+(\.\d+)?$/.test(amountRaw)) throw new Error("amount must be a plain decimal, e.g. 0.20");
 
-const pk = (process.env["AGENT_PRIVATE_KEY"] ?? "").replace(/^(0x)?/, "0x") as Hex;
-if (!/^0x[0-9a-fA-F]{64}$/.test(pk)) throw new Error("AGENT_PRIVATE_KEY is required");
+const pk = readKey("AGENT_PRIVATE_KEY");
 const tag = process.env["ATTRIBUTION_TAG"]?.trim() ?? "";
 const feeRaw = process.env["FEE_CURRENCY"]?.trim() ?? token.feeCurrencyAdapter ?? "none";
 const feeCurrency = feeRaw.toLowerCase() === "none" ? undefined : (feeRaw as Address);
