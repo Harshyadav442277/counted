@@ -5,7 +5,7 @@ leaderboard's own audit on any wallet, transaction or project, and settles each 
 in USA₮ (or USDC / USD₮) over x402 on Celo mainnet.
 
 Built for the [Celo Agents at Work Hackathon](https://celoplatform.notion.site/Agents-at-Work-Hackathon-3c1d5cb803de81139de7f4f3d09e55dc)
-(28 Aug – 14 Sep 2026). **Provenance:** this repo is a port of our open-source
+(28 Aug – 21 Sep 2026). **Provenance:** this repo is a port of our open-source
 x402 + MCP + Telegram rail from [telegraph-morse](https://github.com/Harshyadav442277/telegraph-morse)
 (Telegraph Hackathon, Sep 2026). The Celo work, the audit engine, the seller side of
 x402, fee abstraction and the pay page are the commits in this repository.
