@@ -1,7 +1,7 @@
 {
   "name": "Counted",
   "propertyType": "mcp_server",
-  "propertyUrl": "https://counted.vercel.app/mcp",
+  "propertyUrl": "https://counted-gamma.vercel.app/mcp",
   "budget": 15,
   "skillFilters": [],
   "locationFilters": [],

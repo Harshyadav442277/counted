@@ -33,7 +33,7 @@ enough to act on.
 
 1. **Agents with `@celo/buy`** (gas sponsored, no CELO needed):
    ```bash
-   npx --yes @celo/buy@0.5.0 curl --max-amount 0.05 --token USDT "https://counted.vercel.app/api/verify?wallet=0xYOURWALLET"
+   npx --yes @celo/buy@0.5.0 curl --max-amount 0.05 --token USDT "https://counted-gamma.vercel.app/api/verify?wallet=0xYOURWALLET"
    ```
 2. **Any x402 v2 client**: `GET /api/verify?wallet=0x…`, `GET /api/tagcheck?tx=0x…`,
    `GET /api/audit?wallet=0x…&tag=celo_…`. The 402 lists USA₮, USDC and USD₮ on
@@ -50,7 +50,7 @@ verified user, for you and for us. Need USA₮? Verify once in the
 
 - Telegram: `/standing celo_…` is free; `/verify`, `/tagcheck` and `/audit` hand out a
   pay link and post the result back into the chat once the facilitator settles.
-- MCP (Streamable HTTP): `claude mcp add --transport http counted https://counted.vercel.app/mcp`.
+- MCP (Streamable HTTP): `claude mcp add --transport http counted https://counted-gamma.vercel.app/mcp`.
   Tools: `counted_rules`, `counted_standing`, `counted_how_to_pay` (free);
   `counted_verify`, `counted_tagcheck`, `counted_audit` (paid; pass `payment`, a base64
   x402 v2 PaymentPayload, or receive the 402 terms and a `buy` one-liner).
