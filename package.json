@@ -17,7 +17,8 @@
     "tag:verify": "tsx scripts/verify-tag.ts",
     "buy:test": "tsx scripts/pay-test.ts",
     "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
-    "wallet:new": "tsx scripts/new-wallet.ts"
+    "wallet:new": "tsx scripts/new-wallet.ts",
+    "send": "tsx scripts/send.ts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",
