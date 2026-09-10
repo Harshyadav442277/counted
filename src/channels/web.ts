@@ -1,5 +1,7 @@
 import type { Hono } from "hono";
+import { config } from "../config.js";
 import { isAddress, isTxHash } from "../core/chain.js";
+import { verifyChat } from "../core/ids.js";
 import { getLedger } from "../core/ledger/index.js";
 import { landingPage, ledgerPage, mcpInfoPage, payPage } from "../web/pages.js";
 import type { AppEnv } from "./api.js";
@@ -36,8 +38,9 @@ export function webRoutes(app: Hono<AppEnv>): void {
     if (/^[a-z0-9_]{3,32}$/.test(tag)) params["tag"] = tag;
     const own = (c.req.query("own") ?? "").trim();
     if (own && own.split(",").every((a) => isAddress(a))) params["own"] = own;
-    // A signed chat token from the bot; passed through untouched and verified by the API.
+    // A signed chat token from the bot: verified here and again by the API.
     const chat = c.req.query("chat");
-    return c.html(payPage({ tool, params, chat: chat && /^-?\d{3,20}\.[0-9a-f]{24}$/.test(chat) ? chat : null }));
+    const chatOk = chat && verifyChat(chat, config().HASH_SALT) ? chat : null;
+    return c.html(payPage({ tool, params, chat: chatOk }));
   });
 }

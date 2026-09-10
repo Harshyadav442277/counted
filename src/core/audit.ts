@@ -278,8 +278,12 @@ async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): P
   return out;
 }
 
-/** Calldata fetches per audit for transfers whose transaction is not in the wallet's own tx list. */
-const INPUT_FETCH_CAP = 150;
+/**
+ * Calldata fetches per audit for transfers whose transaction is not in the wallet's
+ * own tx list (a user calling a token contract directly, for instance). Fetched in
+ * order of value so anything left unclassified is the smallest legs.
+ */
+const INPUT_FETCH_CAP = 600;
 
 export async function auditProject(
   payToRaw: string,
@@ -310,8 +314,18 @@ export async function auditProject(
   const inputByHash = new Map<string, string | null>();
   for (const t of natives) inputByHash.set(t.hash, t.rawInput);
   const hashes = new Set<string>([...transfers.map((t) => t.hash), ...natives.map((t) => t.hash)]);
-  const missing = [...hashes].filter((h) => !x402ByHash.get(h) && !inputByHash.has(h)).slice(0, INPUT_FETCH_CAP);
-  const fetched = await pool(missing, 4, (h) => transaction(h).catch(() => null));
+  const usdByHashAll = new Map<string, number>();
+  for (const t of transfers) {
+    const rate = usdFor(t.token.address, t.token.symbol, celoUsd);
+    if (rate === null) continue;
+    const usd = (Number(t.value) / 10 ** t.token.decimals) * rate;
+    usdByHashAll.set(t.hash, Math.max(usdByHashAll.get(t.hash) ?? 0, usd));
+  }
+  const missing = [...hashes]
+    .filter((h) => !x402ByHash.get(h) && !inputByHash.has(h))
+    .sort((a, b) => (usdByHashAll.get(b) ?? 0) - (usdByHashAll.get(a) ?? 0))
+    .slice(0, INPUT_FETCH_CAP);
+  const fetched = await pool(missing, 6, (h) => transaction(h).catch(() => null));
   missing.forEach((h, i) => inputByHash.set(h, fetched[i]?.rawInput ?? null));
   const attribution = new Map<string, Attribution>();
   const otherCodes = new Set<string>();
