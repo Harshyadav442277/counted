@@ -9,9 +9,14 @@ import { config } from "../config.js";
 export const CHAIN_ID = 42220;
 export const NETWORK = "eip155:42220" as const;
 
-/** Counting window of the Agents at Work hackathon, from the published queries. */
+/**
+ * Counting window of the Agents at Work hackathon. The end moved from 14 to 21 Sep
+ * when the organisers extended the event; `metadata.attribution.tagUsage` on
+ * https://celobuilders.xyz/hackathons/agents-at-work reads "counted 28 Aug 00:00 to
+ * 21 Sep 09:00 GMT", and `endsAt` agrees. The /rules endpoint still prints 14 Sep.
+ */
 export const WINDOW_START = Date.UTC(2026, 7, 28, 0, 0, 0); // 2026-08-28T00:00:00Z
-export const WINDOW_END = Date.UTC(2026, 8, 14, 9, 0, 0); // 2026-09-14T09:00:00Z
+export const WINDOW_END = Date.UTC(2026, 8, 21, 9, 0, 0); // 2026-09-21T09:00:00Z
 /** The shared prelude scans ~60 days of token transfers for the "pre-existing" set. */
 export const LOOKBACK_START = WINDOW_START - 60 * 86_400_000;
 /**

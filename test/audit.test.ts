@@ -32,9 +32,9 @@ describe("signer gate", () => {
 });
 
 describe("window constants", () => {
-  it("covers 28 Aug 00:00 to 14 Sep 09:00 GMT with a 60-day lookback", () => {
+  it("covers 28 Aug 00:00 to 21 Sep 09:00 GMT with a 60-day lookback", () => {
     expect(new Date(WINDOW_START).toISOString()).toBe("2026-08-28T00:00:00.000Z");
-    expect(new Date(WINDOW_END).toISOString()).toBe("2026-09-14T09:00:00.000Z");
+    expect(new Date(WINDOW_END).toISOString()).toBe("2026-09-21T09:00:00.000Z");
     expect(new Date(LOOKBACK_START).toISOString()).toBe("2026-06-29T00:00:00.000Z");
     // One block per second on Celo: the cutoff block is a day after the measured 27 Aug block.
     expect(WINDOW_START_BLOCK).toBe(75_888_042 + 86_400);

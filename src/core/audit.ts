@@ -175,7 +175,7 @@ export async function tagCheck(hash: string, expected: string | null): Promise<T
   const submittedByFacilitator = tx.from === lower(FACILITATOR_RELAYER);
   const tag = judgeTag(decodeTag(tx.rawInput), expected);
   const notes: string[] = [];
-  if (!inWindow) notes.push("Outside the counting window (28 Aug 00:00 to 14 Sep 09:00 GMT). Not counted.");
+  if (!inWindow) notes.push("Outside the counting window (28 Aug 00:00 to 21 Sep 09:00 GMT). Not counted.");
   if (submittedByFacilitator) notes.push("Submitted by the x402 facilitator relayer. Settlements cannot carry a tag; they are attributed to the registered payTo wallet instead, so make sure that wallet is on your registration.");
   if (tx.status && tx.status !== "ok") notes.push(`Transaction status: ${tx.status}. Failed transactions move nothing.`);
   return { hash, found: true, at: tx.at, from: tx.from, to: tx.to, status: tx.status, method: tx.method, inWindow, submittedByFacilitator, tag, notes };
@@ -524,7 +524,7 @@ export async function auditProject(
 
 /** The rules, as the product states them. Free, and the same text on every channel. */
 export const RULES = [
-  "Only Celo mainnet activity between 28 Aug 00:00 and 14 Sep 09:00 GMT counts.",
+  "Only Celo mainnet activity between 28 Aug 00:00 and 21 Sep 09:00 GMT counts.",
   "Attribution comes from the ERC-8021 tag in your calldata, or from x402 settlements to your registered wallet. A tag cannot be added after sending; untagged transfers are invisible to the board.",
   "A counterparty counts only if it is not one of your registered wallets, was not first funded by you or your dominant funder, and had Celo activity before 28 Aug (the scoring prelude scans about 60 days back).",
   "Track 1 (Value Moved) ranks adjusted volume: net per transaction, independent counterparties only, multiplied by a gate on distinct signers that reaches 1.0 at about 20.",
