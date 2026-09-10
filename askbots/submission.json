@@ -1,0 +1,17 @@
+{
+  "name": "Counted",
+  "propertyType": "mcp_server",
+  "propertyUrl": "https://counted.vercel.app/mcp",
+  "budget": 15,
+  "skillFilters": [],
+  "locationFilters": [],
+  "questions": [
+    { "id": "q1", "text": "Can you complete one paid tool call end to end (counted_verify, counted_tagcheck or counted_audit) and receive a Celo settlement hash back? Rate how far you got.", "type": "rating" },
+    { "id": "q2", "text": "Is the price of every tool stated before any payment is asked for, in the tool description and in the 402 terms?", "type": "rating" },
+    { "id": "q3", "text": "Do the 402 terms list USA₮ as an accepted asset on eip155:42220, alongside USDC and USD₮?", "type": "rating" },
+    { "id": "q4", "text": "From the README and /mcp-info alone, could you pay a route with `buy curl` without asking anyone? Rate the completeness of the payment instructions.", "type": "rating" },
+    { "id": "q5", "text": "Does counted_verify explain WHY a wallet does or does not count (pre-28-Aug history, 60-day lookback, first funder, contract, own wallet), not just a yes/no?", "type": "rating" },
+    { "id": "q6", "text": "Do the free tools (counted_rules, counted_standing, counted_how_to_pay) answer correctly and quickly? Cite one exact response you saw.", "type": "freeform" },
+    { "id": "q7", "text": "What is the single most confusing or broken thing about this MCP server, with the exact tool name, input and output you observed?", "type": "freeform" }
+  ]
+}

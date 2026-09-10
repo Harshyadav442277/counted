@@ -1,0 +1,40 @@
+{
+  "name": "counted",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Counted: tells any Celo builder whether their on-chain activity actually counts, paid per check in USA₮ over x402. Celo Agents at Work Hackathon, September 2026.",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "register:8004": "tsx scripts/register-8004.ts",
+    "tag:verify": "tsx scripts/verify-tag.ts",
+    "buy:test": "tsx scripts/pay-test.ts"
+  },
+  "dependencies": {
+    "@celo/attribution-tags": "^0.3.0",
+    "@hono/mcp": "^0.3.2",
+    "@hono/node-server": "^2.1.1",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "@x402/core": "2.25.0",
+    "@x402/evm": "2.25.0",
+    "@x402/fetch": "2.25.0",
+    "@x402/hono": "2.25.0",
+    "grammy": "^1.46.0",
+    "hono": "^4.13.5",
+    "viem": "^2.56.3",
+    "zod": "^4.5.4"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.11"
+  }
+}

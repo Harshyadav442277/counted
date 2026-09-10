@@ -1,0 +1,20 @@
+{
+  "type": "https://eips.ethereum.org/EIPS/eip-8004#registration-v1",
+  "name": "Counted",
+  "description": "Tells any Celo builder whether their on-chain activity actually counts on the Agents at Work leaderboard: verified users, returning users, signer gate, adjusted volume, attribution tags and stablecoin rails, reproduced from public explorer data. Every check is paid per request in USA₮, USDC or USD₮ over x402 on Celo mainnet. The agent pays its own gas in USA₮ and never holds CELO.",
+  "image": "https://raw.githubusercontent.com/Harshyadav442277/counted/main/public/counted.svg",
+  "services": [
+    { "name": "MCP", "endpoint": "https://counted.vercel.app/mcp", "version": "2025-06-18" },
+    { "name": "web", "endpoint": "https://counted.vercel.app", "version": "0.1.0" },
+    { "name": "x402", "endpoint": "https://counted.vercel.app/api/prices", "version": "2" }
+  ],
+  "x402Support": true,
+  "active": true,
+  "registrations": [],
+  "supportedTrust": ["reputation"],
+  "hackathon": {
+    "event": "Celo Agents at Work Hackathon, 28 Aug to 14 Sep 2026",
+    "repository": "https://github.com/Harshyadav442277/counted",
+    "builtOn": "https://github.com/Harshyadav442277/telegraph-morse"
+  }
+}
