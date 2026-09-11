@@ -138,7 +138,7 @@ export function settlementFromHeader(raw: string | null | undefined): Settlement
 }
 
 /** Public, client-facing description of how to pay each route. Shown on the site and in MCP. */
-export function howToPay(tool: PaidTool, publicUrl: string): { url: string; priceUsd: number; assets: string[]; buyCurl: string; webPage: string } {
+export function howToPay(tool: PaidTool, publicUrl: string): { url: string; priceUsd: number; assets: string[]; buyCurl: string; webPage: string; sdkNote: string } {
   const url = `${publicUrl}/api/${tool}`;
   return {
     url,
@@ -146,5 +146,9 @@ export function howToPay(tool: PaidTool, publicUrl: string): { url: string; pric
     assets: ["USA₮", "USDC", "USD₮"],
     buyCurl: `npx --yes @celo/buy@0.5.0 curl --max-amount ${priceUsd(tool).toFixed(2)} --token USDT "${url}?${tool === "tagcheck" ? "tx=0x…" : "wallet=0x…"}"`,
     webPage: `${publicUrl}/pay?tool=${tool}`,
+    // The x402 SDK's default-asset table for Celo is USDC only: with the defaults a
+    // client silently drops USA₮ and USD₮ and signs USDC, which fails if the wallet
+    // holds none. Agents using @x402/fetch need to opt the assets in.
+    sdkNote: `@x402/fetch clients: call client.setSpendControls({ allowedAssets: [{ network: "${NETWORK}", asset: "${TOKENS["USAT"]!.address}" }, { network: "${NETWORK}", asset: "${TOKENS["USDT"]!.address}" }], maxAmountPerPayment: false }) or the SDK pays only in USDC and caps payments at $1.`,
   };
 }

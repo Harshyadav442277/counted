@@ -38,6 +38,21 @@ enough to act on.
 2. **Any x402 v2 client**: `GET /api/verify?wallet=0x…`, `GET /api/tagcheck?tx=0x…`,
    `GET /api/audit?wallet=0x…&tag=celo_…`. The 402 lists USA₮, USDC and USD₮ on
    `eip155:42220`; the facilitator is `https://api.x402.celo.org`.
+   **If you use the `@x402/fetch` SDK, opt the assets in:** its default-asset table
+   for Celo is USDC only, so with the defaults it drops USA₮ and USD₮, signs a USDC
+   authorisation and, if the wallet holds no USDC, gets a 402 back. Also lift the
+   SDK's $1 cap on default assets for the audit:
+   ```ts
+   client.setSpendControls({
+     allowedAssets: [
+       { network: "eip155:42220", asset: "0xd2ab3c9a02dbbab236bfec45d1d755df4267f771" }, // USA₮
+       { network: "eip155:42220", asset: "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e" }, // USD₮
+     ],
+     maxAmountPerPayment: false,
+   });
+   ```
+   `scripts/pay-test.ts` is a working example, including a policy that pays only in
+   an asset the wallet actually holds.
 3. **A browser wallet**: open `/pay?tool=verify&subject=0x…`. MetaMask or Rabby signs an
    EIP-3009 authorisation; the facilitator settles it. USA₮ is the default asset.
 
@@ -75,7 +90,7 @@ Set the `.env.example` names in the project settings, then
 |---|---|
 | `npm run register:8004` | Mints the ERC-8004 agent identity on Celo mainnet, gas paid in USA₮ via fee abstraction, calldata tagged with `ATTRIBUTION_TAG`. Prints the Agent ID and the 8004scan URL. |
 | `npm run tag:verify -- 0xTX` | Decodes the ERC-8021 suffix on a transaction. |
-| `npm run buy:test -- verify 0xWALLET` | Pays one of our own routes from a test wallet with an x402 client and prints the settlement. |
+| `npm run buy:test -- verify 0xWALLET` | Pays one of our own routes from a test wallet with an x402 client and prints the settlement. Add `--dry-run` to sign locally and see which asset would be paid without sending anything. |
 
 ## How the audit works
 
