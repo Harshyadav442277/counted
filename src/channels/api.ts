@@ -5,7 +5,7 @@ import { isAddress, isTxHash } from "../core/chain.js";
 import { dashboardUrl, findByTag, NoDuneKey, QUERIES, trackRows } from "../core/dune.js";
 import { auditHtml, auditSummary, tagCheckHtml, tagCheckSummary, walletVerdictHtml, walletVerdictSummary } from "../core/format.js";
 import { newId, verifyChat } from "../core/ids.js";
-import { getLedger } from "../core/ledger/index.js";
+import { getLedger, ledgerDurable } from "../core/ledger/index.js";
 import type { CallRow, Channel, Tool } from "../core/ledger/types.js";
 import { howToPay, paymentFromHeaders, priceUsd, settlementFromHeader, x402Middleware, type PaidTool } from "../core/x402.js";
 import { notifyChat } from "./telegram.js";
@@ -194,7 +194,7 @@ export function apiRoutes(app: Hono<AppEnv>): void {
     const stats = await ledger.stats().catch(() => null);
     const ok = paymentsEnabled(cfg);
     const degraded: string[] = [];
-    if (ledger.kind !== "postgres") degraded.push("ledger is in memory: paid calls are lost on a cold start (set DATABASE_URL)");
+    if (!ledgerDurable(ledger)) degraded.push("ledger is in memory: paid calls are lost on a cold start (set DATABASE_URL or BLOB_READ_WRITE_TOKEN)");
     if (!cfg.DUNE_API_KEY) degraded.push("DUNE_API_KEY is not set: /standing answers from the dashboard link only");
     if (!cfg.TELEGRAM_BOT_TOKEN) degraded.push("no Telegram bot token: the bot channel is off");
     return c.json(
@@ -205,7 +205,7 @@ export function apiRoutes(app: Hono<AppEnv>): void {
         payTo: cfg.AGENT_WALLET ?? null,
         tag: cfg.ATTRIBUTION_TAG ?? null,
         ledger: ledger.kind,
-        ledgerDurable: ledger.kind === "postgres",
+        ledgerDurable: ledgerDurable(ledger),
         telegram: Boolean(cfg.TELEGRAM_BOT_TOKEN),
         dune: Boolean(cfg.DUNE_API_KEY),
         calls: stats?.calls ?? null,

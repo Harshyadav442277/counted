@@ -16,3 +16,5 @@ playwright-report/
 # organiser skill installed with `npx skills add`; not part of the product
 .agents/
 skills-lock.json
+
+.env*

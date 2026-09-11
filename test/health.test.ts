@@ -29,6 +29,7 @@ describe("/api/health", () => {
     process.env["X402_API_KEY"] = "test-key-12345";
     process.env["HASH_SALT"] = "test-salt-not-the-default";
     delete process.env["DATABASE_URL"];
+    delete process.env["BLOB_READ_WRITE_TOKEN"];
     delete process.env["DUNE_API_KEY"];
     delete process.env["TELEGRAM_BOT_TOKEN"];
   });

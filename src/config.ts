@@ -35,6 +35,8 @@ const schema = z.object({
     .transform((v) => v.replace(/^@/, ""))
     .optional(),
   DATABASE_URL: z.string().url().optional(),
+  /** Vercel Blob read-write token; a durable ledger without Postgres. Linked by `vercel blob create-store`. */
+  BLOB_READ_WRITE_TOKEN: z.string().min(8).optional(),
   ADMIN_TOKEN: z.string().min(16).optional(),
   HASH_SALT: z.string().min(8).default("counted-dev-salt-change-me"),
   PUBLIC_URL: z.string().url().optional(),

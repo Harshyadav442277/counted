@@ -100,7 +100,9 @@ the [portal rules](https://celobuilders.xyz/hackathons/agents-at-work/rules).
 ## Evidence
 
 Every call is in the public ledger (`/ledger`, `/api/ledger`) with the payer, the asset
-and the settlement hash. Nothing is mocked; self-payments from the project's own
+and the settlement hash. The ledger lives in Neon Postgres (`DATABASE_URL`) or, as
+deployed, in a Vercel Blob store (`BLOB_READ_WRITE_TOKEN`), one immutable object per
+call, so nothing is lost on a cold start. Nothing is mocked; self-payments from the project's own
 wallets are excluded from scoring by design and are labelled as tests.
 
 ## Licence
