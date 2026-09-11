@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { col, findByTag, isEligible } from "../src/core/dune.js";
+import { col, findByTag, isEligible, parseSnapshot } from "../src/core/dune.js";
 import { standingHtml } from "../src/core/format.js";
 
 const rows = [
@@ -30,5 +30,28 @@ describe("dune rows", () => {
     expect(html).toMatch(/position among eligible: 1 of 2/);
     expect(html).toMatch(/Verified users: <b>4<\/b>/);
     expect(html).toMatch(/eligible leaders: Kobo, Leash/);
+  });
+});
+
+describe("board snapshot", () => {
+  it("accepts the shape the extractor writes and drops unknown tables", () => {
+    const snap = parseSnapshot({ capturedAt: "2026-09-11T12:45:00.000Z", boardUpdated: "Updated 23 hours ago", tables: { track1: rows, bogus: rows, track2: [] } });
+    expect(snap?.capturedAt).toBe("2026-09-11T12:45:00.000Z");
+    expect(snap?.boardUpdated).toBe("Updated 23 hours ago");
+    expect(Object.keys(snap?.tables ?? {})).toEqual(["track1", "track2"]);
+  });
+
+  it("rejects anything that is not a snapshot", () => {
+    expect(parseSnapshot(null)).toBeNull();
+    expect(parseSnapshot({ tables: { track1: rows } })).toBeNull();
+    expect(parseSnapshot({ capturedAt: "not a date", tables: { track1: rows } })).toBeNull();
+    expect(parseSnapshot({ capturedAt: "2026-09-11T12:45:00Z", tables: {} })).toBeNull();
+    expect(parseSnapshot({ capturedAt: "2026-09-11T12:45:00Z", tables: { track1: [1, 2] } })).toBeNull();
+  });
+
+  it("labels a snapshot-sourced standing with the capture time", () => {
+    const html = standingHtml("celo_2a3329b1d57c", [{ title: "Track 2 — Real World Adoption", row: rows[1], rows, executedAt: "2026-09-11T12:45:00.000Z", source: "snapshot" }]);
+    expect(html).toMatch(/board snapshot 2026-09-11T12:45Z/);
+    expect(html).not.toMatch(/query run/);
   });
 });

@@ -92,13 +92,13 @@ export function getBot(): Bot {
     try {
       const tracks = await Promise.all(
         (["track1", "track2", "stablecoin"] as const).map(async (k) => {
-          const { rows, executedAt } = await trackRows(k);
-          return { title: QUERIES[k].title, row: findByTag(rows, tag), rows, executedAt };
+          const { rows, executedAt, source } = await trackRows(k);
+          return { title: QUERIES[k].title, row: findByTag(rows, tag), rows, executedAt, source };
         }),
       );
       await ctx.reply(standingHtml(tag, tracks), OPTS);
     } catch (e) {
-      if (e instanceof NoDuneKey) return ctx.reply(`Live standings need a Dune key on this deployment. Read your row here: ${dashboardUrl()}`);
+      if (e instanceof NoDuneKey) return ctx.reply(`No board snapshot is loaded on this deployment yet. Read your row here: ${dashboardUrl()}`);
       await ctx.reply(`Could not read the board: ${esc((e as Error).message)}`, OPTS);
     }
   });

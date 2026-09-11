@@ -18,7 +18,8 @@
     "buy:test": "node --env-file-if-exists=.env --import tsx scripts/pay-test.ts",
     "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "wallet:new": "tsx scripts/new-wallet.ts",
-    "send": "node --env-file-if-exists=.env --import tsx scripts/send.ts"
+    "send": "node --env-file-if-exists=.env --import tsx scripts/send.ts",
+    "board:snapshot": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/board-snapshot.ts"
   },
   "dependencies": {
     "@celo/attribution-tags": "^0.3.0",

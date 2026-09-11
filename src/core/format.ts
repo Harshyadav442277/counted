@@ -109,10 +109,11 @@ function num(v: unknown): string {
   return Number.isFinite(n) ? (Number.isInteger(n) ? String(n) : n.toFixed(2)) : String(v);
 }
 
-export function standingHtml(tag: string, tracks: Array<{ title: string; row: Row | undefined; rows: Row[]; executedAt: string | null }>): string {
+export function standingHtml(tag: string, tracks: Array<{ title: string; row: Row | undefined; rows: Row[]; executedAt: string | null; source?: "dune" | "snapshot" }>): string {
   const lines = [`<b>Standing for</b> <code>${esc(tag)}</code>`];
   for (const t of tracks) {
-    lines.push("", `<b>${esc(t.title)}</b>${t.executedAt ? ` <i>(query run ${esc(t.executedAt.slice(0, 16))}Z)</i>` : ""}`);
+    const when = t.executedAt ? ` <i>(${t.source === "snapshot" ? "board snapshot" : "query run"} ${esc(t.executedAt.slice(0, 16))}Z)</i>` : "";
+    lines.push("", `<b>${esc(t.title)}</b>${when}`);
     if (!t.row) {
       lines.push("not on this board yet: no attributed activity, or the wallet/tag is not on your registration");
     } else {

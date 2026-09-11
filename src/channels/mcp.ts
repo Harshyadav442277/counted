@@ -54,18 +54,18 @@ export function buildServer(app: Hono<AppEnv>): McpServer {
 
   server.registerTool(
     "counted_standing",
-    { title: "Live leaderboard row for an attribution tag", description: "Reads the organisers' three published Dune queries and returns the row for a celo_… tag, its position among eligible projects, and the eligible leaders. Free.", inputSchema: { tag: z.string().regex(/^[a-z0-9_]{3,32}$/i) } },
+    { title: "Leaderboard row for an attribution tag", description: "Returns the row for a celo_… tag on the organisers' three published Dune queries, its position among eligible projects, and the eligible leaders. Reads the Dune API when a key is configured, otherwise the latest uploaded snapshot of the public board; every answer carries the time it was taken. Free.", inputSchema: { tag: z.string().regex(/^[a-z0-9_]{3,32}$/i) } },
     async ({ tag }) => {
       try {
         const tracks = await Promise.all(
           (["track1", "track2", "stablecoin"] as const).map(async (k) => {
-            const { rows, executedAt } = await trackRows(k);
-            return { track: QUERIES[k].title, executedAt, row: findByTag(rows, tag.toLowerCase()) ?? null, eligibleLeaders: rows.filter((r) => /^yes$/i.test(String(r["Eligible"] ?? r["eligible"] ?? ""))).slice(0, 5) };
+            const { rows, executedAt, source } = await trackRows(k);
+            return { track: QUERIES[k].title, executedAt, source, row: findByTag(rows, tag.toLowerCase()) ?? null, eligibleLeaders: rows.filter((r) => /^yes$/i.test(String(r["Eligible"] ?? r["eligible"] ?? ""))).slice(0, 5) };
           }),
         );
         return text({ tag: tag.toLowerCase(), tracks, dashboard: dashboardUrl() });
       } catch (e) {
-        if (e instanceof NoDuneKey) return text({ error: "Dune key not configured on this deployment", dashboard: dashboardUrl() });
+        if (e instanceof NoDuneKey) return text({ error: e.message, dashboard: dashboardUrl() });
         return text({ error: (e as Error).message });
       }
     },

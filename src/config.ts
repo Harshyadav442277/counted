@@ -82,7 +82,6 @@ export function config(): Config {
   cached = parsed.data;
   if (!cached.AGENT_WALLET) found.push("AGENT_WALLET is not set: paid routes are disabled");
   if (!cached.X402_API_KEY) found.push("X402_API_KEY is not set: the facilitator cannot settle, paid routes are disabled");
-  if (!cached.DUNE_API_KEY) found.push("DUNE_API_KEY is not set: /standing answers from the dashboard link only");
   if (cached.TELEGRAM_BOT_TOKEN && !cached.TELEGRAM_WEBHOOK_SECRET) found.push("TELEGRAM_WEBHOOK_SECRET is not set: the Telegram webhook is disabled until it is");
   if (cached.TELEGRAM_BOT_TOKEN && cached.HASH_SALT === "counted-dev-salt-change-me") found.push("HASH_SALT is the development default: set a random value before enabling Telegram");
   problems = found;
