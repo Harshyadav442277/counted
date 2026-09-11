@@ -2,7 +2,7 @@
   "name": "Counted",
   "propertyType": "mcp_server",
   "propertyUrl": "https://counted-gamma.vercel.app/mcp",
-  "budget": 15,
+  "budget": 10,
   "skillFilters": [],
   "locationFilters": [],
   "questions": [
