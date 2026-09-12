@@ -15,7 +15,7 @@ import { decodeTag, judgeTag, type TagVerdict } from "./tags.js";
 /**
  * The audit engine. It reproduces, from public explorer data, the checks the
  * Agents at Work scoring applies to every counterparty:
- *   1. pre-existing history  - activity on Celo before 28 Aug (the prelude scans ~60 days)
+ *   1. pre-existing history  - a token transfer on Celo in 29 Jun - 28 Aug (organisers, 12 Sep)
  *   2. first-funder collapse - was the wallet first funded by the project itself
  *   3. spawn-window          - wallets born together are one script, not customers
  *   4. own wallets           - a project's own wallets are never its users

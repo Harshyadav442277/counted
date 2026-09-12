@@ -21,7 +21,7 @@ const OPTS = { parse_mode: "HTML" as const, link_preview_options: { is_disabled:
 const START = [
   "<b>Counted</b> — does your Celo activity actually count?",
   "",
-  "The Agents at Work leaderboard only counts counterparties that are independent and existed before 28 Aug. This bot runs that audit on any wallet, transaction or project, and settles each check in USA₮ over x402.",
+  "The Agents at Work leaderboard only counts counterparties that are independent and moved a token on Celo between 29 Jun and 28 Aug. This bot runs that audit on any wallet, transaction or project, and settles each check in USA₮ over x402.",
   "",
   "/standing celo_yourtag — your live row on the three track queries (free)",
   "/verify 0x… — does this wallet count as a verified user? ($PRICE_CHECK)",
@@ -79,7 +79,7 @@ export function getBot(): Bot {
         `2. Humans: open the pay page from any /verify, /tagcheck or /audit reply and sign with MetaMask or Rabby. USA₮ by default.`,
         `3. Any x402 v2 client against ${esc(base)}/api/verify, /api/tagcheck, /api/audit on eip155:42220.`,
         "",
-        "Pay from the wallet you used before 28 Aug: that is the one that counts as a verified user for you and for us.",
+        "Pay from a wallet that moved a token on Celo between 29 Jun and 28 Aug: that is the one that counts as a verified user for you and for us.",
         "Need USA₮? Verify once in the Self app and claim from the Google Cloud faucet: https://cloud.google.com/application/web3/faucet/celo/mainnet",
       ].join("\n"),
       OPTS,

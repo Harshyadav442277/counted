@@ -11,7 +11,7 @@ export function landingPage(o: { stats: Stats; recent: CallRow[]; ledgerKind: st
   const bot = c.TELEGRAM_BOT_USERNAME ? `https://t.me/${c.TELEGRAM_BOT_USERNAME}` : null;
   const how = howToPay("verify", base);
   const body = `
-<p class="lede">The Agents at Work leaderboard only counts counterparties that are <b>independent</b> and <b>existed before 28 August</b>. Nobody can see that from a block explorer. Counted runs the organisers' audit on any wallet, transaction or project, and settles each check in USA₮ over x402.</p>
+<p class="lede">The Agents at Work leaderboard only counts counterparties that are <b>independent</b> and <b>moved a token on Celo between 29 June and 28 August</b>. Nobody can see that from a block explorer. Counted runs the organisers' audit on any wallet, transaction or project, and settles each check in USA₮ over x402.</p>
 <p class="sub">Verified users, returning users, signer gate, adjusted volume, attribution tags, stablecoin rails: the same checks the published Dune queries apply, run early enough to act on. ${paymentsEnabled() ? "" : '<span class="warn">Payments are not configured on this deployment yet.</span>'}</p>
 <div class="grid">
   <div class="stat"><b>${o.stats.paidCalls}</b><span>paid checks</span></div>
@@ -26,7 +26,7 @@ export function landingPage(o: { stats: Stats; recent: CallRow[]; ledgerKind: st
   <input name="tag" placeholder="celo_… (optional)">
   <button type="submit">Continue to payment</button>
 </form>
-<p class="muted">Pay from the wallet you used before 28 August: that is the one that counts as a verified user. Need USA₮? Verify once in the <a href="https://self.xyz">Self app</a> and claim from the <a href="https://cloud.google.com/application/web3/faucet/celo/mainnet">Google Cloud faucet</a>.</p>
+<p class="muted">Pay from a wallet that moved a token on Celo between 29 June and 28 August: that is the one that counts as a verified user (the organisers confirmed that window on 12 September; contract calls alone do not qualify). Need USA₮? Verify once in the <a href="https://self.xyz">Self app</a> and claim from the <a href="https://cloud.google.com/application/web3/faucet/celo/mainnet">Google Cloud faucet</a>.</p>
 </div>
 <div class="panel"><h2>Three ways to pay</h2>
 <ol class="steps">
@@ -92,7 +92,7 @@ export function payPromptPage(o: { tool: "verify" | "tagcheck" | "audit"; tag: s
   <input name="tag" value="${e(o.tag ?? "")}" placeholder="celo_… (optional)">
   <button type="submit">Continue to payment</button>
 </form>
-<p class="muted">Pay from a wallet that was active on Celo before 28 August: that is the one the leaderboard counts as a verified user.</p></div>
+<p class="muted">Pay from a wallet that moved a token on Celo between 29 June and 28 August: that is the one the leaderboard counts as a verified user.</p></div>
 <div class="panel"><h2>Prefer not to use a browser?</h2><pre>${e(howToPay(o.tool, publicUrl()).buyCurl)}</pre>
 <p class="muted">Or add the MCP server: <code>claude mcp add --transport http counted ${e(publicUrl())}/mcp</code></p></div>`;
   return page(`Counted — ${label.toLowerCase()}`, body);
