@@ -33,6 +33,8 @@ export interface WalletVerdict {
   activeBeforeWindow: boolean;
   activeInLookback: boolean;
   lastActivityBeforeWindow: string | null;
+  /** Latest *token transfer* before the window. Only these make a wallet pre-existing. */
+  lastTokenTransferBeforeWindow: string | null;
   firstSeen: string | null;
   firstFunder: string | null;
   firstFunderResolved: boolean;
@@ -114,7 +116,11 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
   ]);
   const latestBefore = [before.items[0]?.at, beforeTx.items[0]?.at].filter((x): x is string => Boolean(x)).sort().at(-1) ?? null;
   const activeBeforeWindow = latestBefore !== null;
-  const activeInLookback = activeBeforeWindow && Date.parse(latestBefore) >= LOOKBACK_START;
+  // Organisers, 2026-09-12: the prelude scans *token transfers* only, over 29 Jun - 28 Aug.
+  // A wallet that only made contract calls in that window is not pre-existing, so the
+  // lookback test reads the token-transfer feed alone; plain transactions are context.
+  const latestTokenBefore = before.items[0]?.at ?? null;
+  const activeInLookback = latestTokenBefore !== null && Date.parse(latestTokenBefore) >= LOOKBACK_START;
 
   let firstSeen: string | null = null;
   let firstFunder: string | null = null;
@@ -137,8 +143,10 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
   } else {
     reasons.push(
       activeInLookback
-        ? `Active on Celo before 28 Aug (last seen ${latestBefore.slice(0, 16)}Z), inside the 60-day lookback the scoring prelude scans.`
-        : `Active on Celo before 28 Aug, but last seen ${latestBefore.slice(0, 16)}Z, which is before the 60-day lookback window (${new Date(LOOKBACK_START).toISOString().slice(0, 10)}). Treat as unverified until the organisers confirm the lookback.`,
+        ? `Moved a token on Celo at ${latestTokenBefore!.slice(0, 16)}Z, inside the 29 Jun - 28 Aug window the scoring prelude scans. Pre-existing.`
+        : latestTokenBefore
+          ? `Last token transfer ${latestTokenBefore.slice(0, 16)}Z, before the 29 Jun - 28 Aug window. Not pre-existing: the prelude scans that window only (organisers, 12 Sep).`
+          : `Active on Celo before 28 Aug (last seen ${latestBefore.slice(0, 16)}Z) but with no token transfer. Only token transfers make a wallet pre-existing (organisers, 12 Sep), so contract calls alone do not qualify.`,
     );
     const key = config().CELOSCAN_API_KEY;
     if (key) {
@@ -184,7 +192,7 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
   if (verifiedUser) reasons.push("Counts as a verified user: independent, pre-existing, not a contract.");
   else if (countsAsSigner) reasons.push("Counts as a signer/authoriser and as a counterparty, but not as a verified user.");
 
-  return { wallet, isContract: info.isContract, contractKnown: info.known, name: info.name, activeBeforeWindow, activeInLookback, lastActivityBeforeWindow: latestBefore, firstSeen, firstFunder, firstFunderResolved, flags, verifiedUser, countsAsSigner, reasons };
+  return { wallet, isContract: info.isContract, contractKnown: info.known, name: info.name, activeBeforeWindow, activeInLookback, lastActivityBeforeWindow: latestBefore, lastTokenTransferBeforeWindow: latestTokenBefore, firstSeen, firstFunder, firstFunderResolved, flags, verifiedUser, countsAsSigner, reasons };
 }
 
 export interface TagCheck {
@@ -537,7 +545,7 @@ export async function auditProject(
   if (metrics.unverifiedCounterparties > 0) hints.push(`${metrics.unverifiedCounterparties} of ${inspect.length} inspected counterparties could not be verified (explorer rate limit or timeout); their volume is left out of the independent total. Run the audit again in a few minutes.`);
   if (contractUnknown > 0) hints.push(`${contractUnknown} inspected counterparties could not be checked for contract status (explorer rate limit or timeout), so they are excluded from verified users, signers and the independent total. Run the audit again in a few minutes; the totals here are a lower bound.`);
   if (metrics.unknownAttributionTxs > 0) hints.push(`${metrics.unknownAttributionTxs} transactions could not be classified (calldata fetch cap of ${INPUT_FETCH_CAP} reached); they are excluded from the totals above.`);
-  if (metrics.attributedTxs > 0 && verified.length === 0) hints.push("Zero verified users: none of the counterparties inspected had Celo activity in the 60 days before 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
+  if (metrics.attributedTxs > 0 && verified.length === 0) hints.push("Zero verified users: none of the counterparties inspected moved a token on Celo between 29 Jun and 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
   if (verified.length > 0 && verified.length < 20) {
     const next = signerGate(verified.length + 5);
     hints.push(`Signer gate is ${gate.toFixed(2)} with ${verified.length} verified signers; five more would lift it to ${next.toFixed(2)} and adjusted volume from $${metrics.adjustedUsd.toFixed(2)} to $${(independentUsd * next).toFixed(2)}.`);
@@ -568,7 +576,7 @@ export async function auditProject(
 export const RULES = [
   "Only Celo mainnet activity between 28 Aug 00:00 and 21 Sep 09:00 GMT counts.",
   "Attribution comes from the ERC-8021 tag in your calldata, or from x402 settlements to your registered wallet. A tag cannot be added after sending; untagged transfers are invisible to the board.",
-  "A counterparty counts only if it is not one of your registered wallets, was not first funded by you or your dominant funder, and had Celo activity before 28 Aug (the scoring prelude scans about 60 days back).",
+  "A counterparty counts only if it is not one of your registered wallets, was not first funded by you or your dominant funder, and moved a token on Celo between 29 Jun and 28 Aug 00:00 (confirmed by the organisers on 12 Sep: token transfers only, that 60-day window only, and activity during the hackathon does not qualify).",
   "Track 1 (Value Moved) ranks adjusted volume: net per transaction, independent counterparties only, multiplied by a gate on distinct signers that reaches 1.0 at about 20.",
   "Track 2 (Real World Adoption) ranks verified users first, returning users (2+ distinct UTC days) second, distinct signers and EIP-3009 authorisers third. Money moved is irrelevant.",
   "Best Stablecoin Adoption uses the same signals among projects using USA₮, cNGN or Ripio wFIAT, or settling over the x402 facilitator. USA₮ settled over x402 scores highest.",

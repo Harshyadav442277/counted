@@ -95,7 +95,7 @@ describe("usd pricing", () => {
 describe("rules text", () => {
   it("states the three things that decide the audit", () => {
     const all = RULES.join(" ");
-    expect(all).toMatch(/before 28 Aug/);
+    expect(all).toMatch(/29 Jun and 28 Aug/);
     expect(all).toMatch(/first funded/);
     expect(all).toMatch(/USA₮ settled over x402/);
   });
