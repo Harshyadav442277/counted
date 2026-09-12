@@ -311,8 +311,13 @@ interface Agg {
   x402: Set<string>;
 }
 
-export function signerGate(verifiedSigners: number): number {
-  return Math.min(1, verifiedSigners / 20);
+/**
+ * least(1, signers / 20). Organisers, 12 Sep: the signer count is taken across all of a
+ * project's counted payments, not only the independent ones, excluding its own wallets.
+ * Only the volume it multiplies is restricted to pre-existing counterparties.
+ */
+export function signerGate(distinctSigners: number): number {
+  return Math.min(1, distinctSigners / 20);
 }
 
 async function pool<T, R>(items: T[], size: number, fn: (t: T) => Promise<R>): Promise<R[]> {
@@ -499,7 +504,7 @@ export async function auditProject(
   const contractUnknown = judged.filter((c) => c.verdict!.flags.includes("contract-unknown")).length;
   const grossUsd = counterparties.reduce((s, c) => s + c.usd, 0);
   const independentUsd = verified.reduce((s, c) => s + c.usd, 0);
-  const gate = signerGate(verified.length);
+  const gate = signerGate(signers);
   const attributedHashes = [...hashes].filter(attributed);
   const metrics: AuditMetrics = {
     attributedTxs: attributedHashes.length,
@@ -546,9 +551,9 @@ export async function auditProject(
   if (contractUnknown > 0) hints.push(`${contractUnknown} inspected counterparties could not be checked for contract status (explorer rate limit or timeout), so they are excluded from verified users, signers and the independent total. Run the audit again in a few minutes; the totals here are a lower bound.`);
   if (metrics.unknownAttributionTxs > 0) hints.push(`${metrics.unknownAttributionTxs} transactions could not be classified (calldata fetch cap of ${INPUT_FETCH_CAP} reached); they are excluded from the totals above.`);
   if (metrics.attributedTxs > 0 && verified.length === 0) hints.push("Zero verified users: none of the counterparties inspected moved a token on Celo between 29 Jun and 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
-  if (verified.length > 0 && verified.length < 20) {
-    const next = signerGate(verified.length + 5);
-    hints.push(`Signer gate is ${gate.toFixed(2)} with ${verified.length} verified signers; five more would lift it to ${next.toFixed(2)} and adjusted volume from $${metrics.adjustedUsd.toFixed(2)} to $${(independentUsd * next).toFixed(2)}.`);
+  if (signers > 0 && signers < 20) {
+    const next = signerGate(signers + 5);
+    hints.push(`Signer multiplier is ${gate.toFixed(2)} with ${signers} distinct signers (every counted payer, not only verified ones); five more would lift it to ${next.toFixed(2)} and adjusted volume from $${metrics.adjustedUsd.toFixed(2)} to $${(independentUsd * next).toFixed(2)}.`);
   }
   if (verified.length > 0 && verifiedReturning === 0) hints.push("No verified user has come back on a second UTC day. Returning users are the second ranking signal; give them a reason to return tomorrow.");
   if (fresh > 0) hints.push(`${fresh} of ${judged.length} inspected counterparties were born inside the window. They count as signers and counterparties, never as verified users.`);
@@ -577,7 +582,7 @@ export const RULES = [
   "Only Celo mainnet activity between 28 Aug 00:00 and 21 Sep 09:00 GMT counts.",
   "Attribution comes from the ERC-8021 tag in your calldata, or from x402 settlements to your registered wallet. A tag cannot be added after sending; untagged transfers are invisible to the board.",
   "A counterparty counts only if it is not one of your registered wallets, was not first funded by you or your dominant funder, and moved a token on Celo between 29 Jun and 28 Aug 00:00 (confirmed by the organisers on 12 Sep: token transfers only, that 60-day window only, and activity during the hackathon does not qualify).",
-  "Track 1 (Value Moved) ranks adjusted volume: net per transaction, independent counterparties only, multiplied by a gate on distinct signers that reaches 1.0 at about 20.",
+  "Track 1 (Value Moved) ranks adjusted volume: net per transaction, independent counterparties only, multiplied by least(1, distinct signers / 20). The signer count is taken across all your counted payments, not only the independent ones.",
   "Track 2 (Real World Adoption) ranks verified users first, returning users (2+ distinct UTC days) second, distinct signers and EIP-3009 authorisers third. Money moved is irrelevant.",
   "Best Stablecoin Adoption uses the same signals among projects using USA₮, cNGN or Ripio wFIAT, or settling over the x402 facilitator. USA₮ settled over x402 scores highest.",
   "Drafts on the builders portal are registered but not eligible. Publish before the deadline.",
