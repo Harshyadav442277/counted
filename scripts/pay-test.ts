@@ -11,9 +11,9 @@ import { NETWORK, TOKENS, tokenByAddress } from "../src/core/chain.js";
  * Pay one of Counted's own routes from a wallet, end to end, and print the
  * settlement. Proves the pipe before anyone else is asked to pay.
  *
- *   TEST_PRIVATE_KEY=0x… TARGET_URL=https://… npm run buy:test -- verify 0xWallet
- *   TEST_PRIVATE_KEY=0x… TARGET_URL=https://… npm run buy:test -- tagcheck 0xTxHash
- *   npm run buy:test -- verify 0xWallet --dry-run   # sign locally, send nothing
+ *   TEST_PRIVATE_KEY=0x… TARGET_URL=https://… npm run pay:test -- verify 0xWallet
+ *   TEST_PRIVATE_KEY=0x… TARGET_URL=https://… npm run pay:test -- tagcheck 0xTxHash
+ *   npm run pay:test -- verify 0xWallet --dry-run   # sign locally, send nothing
  *
  * Self-payments from the project's own wallets are excluded from scoring by design;
  * use a separate test wallet, and log it in the Evidence table.

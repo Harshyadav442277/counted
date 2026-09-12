@@ -2,7 +2,7 @@ import type { Context, Hono } from "hono";
 import { config, configProblems, paymentsEnabled, publicUrl } from "../config.js";
 import { auditProject, RULES, tagCheck, verifyWallet, type AuditReport, type TagCheck, type WalletVerdict } from "../core/audit.js";
 import { isAddress, isTxHash } from "../core/chain.js";
-import { dashboardUrl, findByTag, NoDuneKey, QUERIES, trackRows, boardStatus } from "../core/dune.js";
+import { dashboardUrl, findByTag, NoBoardSnapshot, QUERIES, trackRows, boardStatus } from "../core/dune.js";
 import { auditHtml, auditSummary, tagCheckHtml, tagCheckSummary, walletVerdictHtml, walletVerdictSummary } from "../core/format.js";
 import { newId, verifyChat } from "../core/ids.js";
 import { getLedger, ledgerDurable } from "../core/ledger/index.js";
@@ -160,7 +160,7 @@ export function apiRoutes(app: Hono<AppEnv>): void {
       );
       return c.json({ ok: true, tag, tracks, dashboard: dashboardUrl() });
     } catch (e) {
-      if (e instanceof NoDuneKey) return c.json({ ok: false, tag, error: e.message, dashboard: dashboardUrl() }, 503);
+      if (e instanceof NoBoardSnapshot) return c.json({ ok: false, tag, error: e.message, dashboard: dashboardUrl() }, 503);
       return c.json({ ok: false, tag, error: (e as Error).message, dashboard: dashboardUrl() }, 502);
     }
   });
@@ -185,7 +185,7 @@ export function apiRoutes(app: Hono<AppEnv>): void {
   });
 
   // `ok` is whether the service can do the job it sells: quote a price and settle it.
-  // An ephemeral ledger and a missing Dune key lose history and the /standing answer,
+  // An ephemeral ledger and a missing board snapshot lose history and the /standing answer,
   // which is worth reporting, but a checker reading the status code should not be told
   // a service that is taking payments is down.
   app.get("/api/health", async (c) => {
@@ -194,9 +194,9 @@ export function apiRoutes(app: Hono<AppEnv>): void {
     const stats = await ledger.stats().catch(() => null);
     const ok = paymentsEnabled(cfg);
     const degraded: string[] = [];
-    if (!ledgerDurable(ledger)) degraded.push("ledger is in memory: paid calls are lost on a cold start (set DATABASE_URL or BLOB_READ_WRITE_TOKEN)");
+    if (!ledgerDurable(ledger)) degraded.push("ledger is in memory: paid calls are lost on a cold start (set BLOB_READ_WRITE_TOKEN)");
     const board = await boardStatus();
-    if (board.source === "none") degraded.push("no board data: DUNE_API_KEY is not set and no snapshot is uploaded, so /standing answers with the dashboard link only");
+    if (board.source === "none") degraded.push("no board data: no snapshot is uploaded, so /standing answers with the dashboard link only");
     if (!cfg.TELEGRAM_BOT_TOKEN) degraded.push("no Telegram bot token: the bot channel is off");
     return c.json(
       {
@@ -208,7 +208,6 @@ export function apiRoutes(app: Hono<AppEnv>): void {
         ledger: ledger.kind,
         ledgerDurable: ledgerDurable(ledger),
         telegram: Boolean(cfg.TELEGRAM_BOT_TOKEN),
-        dune: Boolean(cfg.DUNE_API_KEY),
         board,
         calls: stats?.calls ?? null,
         paidCalls: stats?.paidCalls ?? null,

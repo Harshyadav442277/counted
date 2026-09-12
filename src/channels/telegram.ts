@@ -3,7 +3,7 @@ import type { Hono } from "hono";
 import { config, publicUrl } from "../config.js";
 import { RULES } from "../core/audit.js";
 import { isAddress, isTxHash } from "../core/chain.js";
-import { dashboardUrl, findByTag, NoDuneKey, QUERIES, trackRows } from "../core/dune.js";
+import { dashboardUrl, findByTag, NoBoardSnapshot, QUERIES, trackRows } from "../core/dune.js";
 import { esc, standingHtml } from "../core/format.js";
 import { signChat } from "../core/ids.js";
 import { priceUsd } from "../core/x402.js";
@@ -98,7 +98,7 @@ export function getBot(): Bot {
       );
       await ctx.reply(standingHtml(tag, tracks), OPTS);
     } catch (e) {
-      if (e instanceof NoDuneKey) return ctx.reply(`No board snapshot is loaded on this deployment yet. Read your row here: ${dashboardUrl()}`);
+      if (e instanceof NoBoardSnapshot) return ctx.reply(`No board snapshot is loaded on this deployment yet. Read your row here: ${dashboardUrl()}`);
       await ctx.reply(`Could not read the board: ${esc((e as Error).message)}`, OPTS);
     }
   });

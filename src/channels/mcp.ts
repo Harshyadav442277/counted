@@ -4,7 +4,7 @@ import type { Hono } from "hono";
 import { z } from "zod";
 import { publicUrl } from "../config.js";
 import { RULES } from "../core/audit.js";
-import { dashboardUrl, findByTag, NoDuneKey, QUERIES, trackRows } from "../core/dune.js";
+import { dashboardUrl, findByTag, NoBoardSnapshot, QUERIES, trackRows } from "../core/dune.js";
 import { howToPay, type PaidTool } from "../core/x402.js";
 import type { AppEnv } from "./api.js";
 
@@ -65,7 +65,7 @@ export function buildServer(app: Hono<AppEnv>): McpServer {
         );
         return text({ tag: tag.toLowerCase(), tracks, dashboard: dashboardUrl() });
       } catch (e) {
-        if (e instanceof NoDuneKey) return text({ error: e.message, dashboard: dashboardUrl() });
+        if (e instanceof NoBoardSnapshot) return text({ error: e.message, dashboard: dashboardUrl() });
         return text({ error: (e as Error).message });
       }
     },

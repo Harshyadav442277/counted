@@ -90,20 +90,20 @@ Set the `.env.example` names in the project settings, then
 |---|---|
 | `npm run register:8004` | Mints the ERC-8004 agent identity on Celo mainnet, gas paid in USA₮ via fee abstraction, calldata tagged with `ATTRIBUTION_TAG`. Prints the Agent ID and the 8004scan URL. |
 | `npm run tag:verify -- 0xTX` | Decodes the ERC-8021 suffix on a transaction. |
-| `npm run buy:test -- verify 0xWALLET` | Pays one of our own routes from a test wallet with an x402 client and prints the settlement. Add `--dry-run` to sign locally and see which asset would be paid without sending anything. |
+| `npm run pay:test -- verify 0xWALLET --dry-run` | Reference x402 client for Celo: signs a USA₮ authorisation locally and shows which asset would be paid, without sending anything. Drop `--dry-run` to settle for real. |
 
 ## How the audit works
 
-- **Pre-existing history**: the explorer is asked for the wallet's newest token
-  transfer and transaction before block 75,974,442 (28 Aug 00:00 UTC). Anything inside
-  the 60 days before that makes the wallet verified; older activity is reported but
-  flagged.
+- **Pre-existing history**: the explorer is asked for the wallet's newest *token
+  transfer* before block 75,974,442 (28 Aug 00:00 UTC). A token transfer between
+  29 Jun and 28 Aug makes the wallet pre-existing; older activity, or contract calls
+  with no token moved, do not (confirmed by the organisers, 12 Sep).
 - **First funder**: for wallets born inside the window, the earliest inbound transfer;
   for old wallets, the earliest transaction via Celoscan when a key is configured.
 - **Own wallets and contracts**: a project's own wallets are never its users; contracts
   are not users.
-- **Signer gate**: adjusted volume = independent volume × min(1, verified signers / 20),
-  which fits every point on the live board (95 → 1.00, 9 → 0.45, 2 → 0.10).
+- **Signer multiplier**: adjusted volume = independent volume × least(1, distinct signers / 20),
+  with signers counted across all counted payments, not only the independent ones.
 - **Track 2 signals**: verified users, returning users (2+ distinct UTC days), distinct
   signers and EIP-3009 authorisers.
 - **Stablecoin bounty**: named stablecoins (USA₮, cNGN, wFIAT) and x402 settlements,
@@ -115,10 +115,10 @@ the [portal rules](https://celobuilders.xyz/hackathons/agents-at-work/rules).
 ## Evidence
 
 Every call is in the public ledger (`/ledger`, `/api/ledger`) with the payer, the asset
-and the settlement hash. The ledger lives in Neon Postgres (`DATABASE_URL`) or, as
-deployed, in a Vercel Blob store (`BLOB_READ_WRITE_TOKEN`), one immutable object per
-call, so nothing is lost on a cold start. Nothing is mocked; self-payments from the project's own
-wallets are excluded from scoring by design and are labelled as tests.
+and the settlement hash. The ledger lives in a Vercel Blob store (`BLOB_READ_WRITE_TOKEN`), one immutable object per
+call, so nothing is lost on a cold start. It records paid use by other people only: the one
+end-to-end test settlement (11 Sep, from the declared test wallet `0x55100BeB…5726`) proved
+the rail and is kept out of it; its hash is on Celoscan.
 
 ## Licence
 

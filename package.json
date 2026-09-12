@@ -12,13 +12,10 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "e2e": "playwright test",
+    "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
     "register:8004": "node --env-file-if-exists=.env --import tsx scripts/register-8004.ts",
     "tag:verify": "node --env-file-if-exists=.env --import tsx scripts/verify-tag.ts",
-    "buy:test": "node --env-file-if-exists=.env --import tsx scripts/pay-test.ts",
-    "start": "node --env-file-if-exists=.env --import tsx src/server.ts",
-    "wallet:new": "tsx scripts/new-wallet.ts",
-    "send": "node --env-file-if-exists=.env --import tsx scripts/send.ts",
+    "pay:test": "node --env-file-if-exists=.env --import tsx scripts/pay-test.ts",
     "board:snapshot": "node --env-file-if-exists=.env --env-file-if-exists=.env.local --import tsx scripts/board-snapshot.ts"
   },
   "dependencies": {
@@ -26,7 +23,6 @@
     "@hono/mcp": "^0.3.2",
     "@hono/node-server": "^2.1.1",
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "@neondatabase/serverless": "^1.1.0",
     "@vercel/blob": "^2.8.0",
     "@x402/core": "2.25.0",
     "@x402/evm": "2.25.0",
@@ -38,7 +34,6 @@
     "zod": "^4.5.4"
   },
   "devDependencies": {
-    "@playwright/test": "^1.62.1",
     "@types/node": "^22.20.1",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",

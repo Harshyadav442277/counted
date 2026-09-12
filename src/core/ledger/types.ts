@@ -37,7 +37,7 @@ export interface Stats {
 }
 
 export interface Ledger {
-  readonly kind: "postgres" | "blob" | "memory";
+  readonly kind: "blob" | "memory";
   init(): Promise<void>;
   record(row: CallRow): Promise<void>;
   recent(limit: number): Promise<CallRow[]>;

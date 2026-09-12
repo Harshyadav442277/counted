@@ -28,9 +28,7 @@ describe("/api/health", () => {
     process.env["AGENT_WALLET"] = WALLET;
     process.env["X402_API_KEY"] = "test-key-12345";
     process.env["HASH_SALT"] = "test-salt-not-the-default";
-    delete process.env["DATABASE_URL"];
     delete process.env["BLOB_READ_WRITE_TOKEN"];
-    delete process.env["DUNE_API_KEY"];
     delete process.env["TELEGRAM_BOT_TOKEN"];
   });
   afterEach(() => {
@@ -45,8 +43,8 @@ describe("/api/health", () => {
     expect(body.payments).toBe(true);
     expect(body.ledger).toBe("memory");
     expect(body.ledgerDurable).toBe(false);
-    expect(body.degraded.join(" ")).toContain("DATABASE_URL");
-    expect(body.degraded.join(" ")).toContain("DUNE_API_KEY");
+    expect(body.degraded.join(" ")).toContain("BLOB_READ_WRITE_TOKEN");
+    expect(body.degraded.join(" ")).toContain("no snapshot is uploaded");
   });
 
   it("answers 503 only when the service cannot take a payment", async () => {

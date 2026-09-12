@@ -15,9 +15,9 @@ export function normalisePrivateKey(raw: string | undefined): string | undefined
 }
 
 const schema = z.object({
-  /** The registered agent wallet: x402 payTo, AskBots funder, ERC-8004 owner. Public address only. */
+  /** The registered agent wallet: x402 payTo and ERC-8004 owner. Public address only. */
   AGENT_WALLET: z.string().regex(ADDRESS, "AGENT_WALLET must be a 0x address").optional(),
-  /** Only the scripts (ERC-8004 mint, test payments) need the key. The web service never does. */
+  /** Only the ERC-8004 mint script needs the key. The web service never does. */
   AGENT_PRIVATE_KEY: z.string().regex(HEX64).optional(),
   /** celo_ + 12 hex, issued at registration on celobuilders.xyz. */
   ATTRIBUTION_TAG: z.string().regex(/^[a-z0-9_]{1,32}$/).optional(),
@@ -26,7 +26,6 @@ const schema = z.object({
   RPC_URL: z.string().url().default("https://forno.celo.org"),
   BLOCKSCOUT_URL: z.string().url().default("https://celo.blockscout.com/api/v2"),
   CELOSCAN_API_KEY: z.string().min(8).optional(),
-  DUNE_API_KEY: z.string().min(8).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(10).optional(),
   TELEGRAM_WEBHOOK_SECRET: z.string().min(16).optional(),
   TELEGRAM_BOT_USERNAME: z
@@ -34,8 +33,7 @@ const schema = z.object({
     .regex(/^@?[A-Za-z0-9_]{5,32}$/)
     .transform((v) => v.replace(/^@/, ""))
     .optional(),
-  DATABASE_URL: z.string().url().optional(),
-  /** Vercel Blob read-write token; a durable ledger without Postgres. Linked by `vercel blob create-store`. */
+  /** Vercel Blob read-write token: the durable ledger and the board snapshot. Linked by `vercel blob create-store`. */
   BLOB_READ_WRITE_TOKEN: z.string().min(8).optional(),
   ADMIN_TOKEN: z.string().min(16).optional(),
   HASH_SALT: z.string().min(8).default("counted-dev-salt-change-me"),

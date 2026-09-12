@@ -2,11 +2,10 @@ import { list } from "@vercel/blob";
 import { config } from "../config.js";
 
 /**
- * The organisers' published leaderboard queries. `/standing` reads their latest
- * results through the Dune API when a key is configured. Dune's API is a paid
- * feature, so without a key it reads the latest *snapshot* of the public board,
- * uploaded with `npm run board:snapshot` after reading the dashboard in a browser,
- * and every answer carries the time the snapshot was taken.
+ * The organisers' published leaderboard queries. Dune's API is a paid feature, so
+ * `/standing` reads the latest *snapshot* of the public board, uploaded with
+ * `npm run board:snapshot` after reading the dashboard in a browser, and every answer
+ * carries the time the snapshot was taken.
  */
 export const QUERIES = {
   track1: { id: 8400974, title: "Track 1 — Value Moved" },
@@ -19,7 +18,7 @@ export const QUERIES = {
 
 export type TrackKey = keyof typeof QUERIES;
 export type Row = Record<string, unknown>;
-export type Source = "dune" | "snapshot";
+export type Source = "snapshot";
 
 /** The uploaded board snapshot: one row array per table, keyed as in QUERIES. */
 export interface Snapshot {
@@ -31,12 +30,9 @@ export interface Snapshot {
 
 export const SNAPSHOT_PATH = "board/latest.json";
 
-const cache = new Map<TrackKey, { at: number; rows: Row[]; executedAt: string | null }>();
-const TTL_MS = 10 * 60_000;
-
-export class NoDuneKey extends Error {
+export class NoBoardSnapshot extends Error {
   constructor() {
-    super("No board data on this deployment: DUNE_API_KEY is not set and no board snapshot has been uploaded");
+    super("No board data on this deployment: no board snapshot has been uploaded");
   }
 }
 
@@ -87,30 +83,14 @@ export function resetSnapshotForTests(): void {
 }
 
 export async function trackRows(track: TrackKey): Promise<{ rows: Row[]; executedAt: string | null; cached: boolean; source: Source }> {
-  const key = config().DUNE_API_KEY;
-  if (!key) {
-    const snap = await loadSnapshot();
-    const rows = snap?.tables[track];
-    if (!snap || !rows) throw new NoDuneKey();
-    return { rows, executedAt: snap.capturedAt, cached: true, source: "snapshot" };
-  }
-  const hit = cache.get(track);
-  if (hit && Date.now() - hit.at < TTL_MS) return { rows: hit.rows, executedAt: hit.executedAt, cached: true, source: "dune" };
-  const res = await fetch(`https://api.dune.com/api/v1/query/${QUERIES[track].id}/results?limit=500`, {
-    headers: { "X-Dune-API-Key": key },
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!res.ok) throw new Error(`Dune ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const json = (await res.json()) as { execution_ended_at?: string; result?: { rows?: Row[] } };
-  const rows = json.result?.rows ?? [];
-  const executedAt = json.execution_ended_at ?? null;
-  cache.set(track, { at: Date.now(), rows, executedAt });
-  return { rows, executedAt, cached: false, source: "dune" };
+  const snap = await loadSnapshot();
+  const rows = snap?.tables[track];
+  if (!snap || !rows) throw new NoBoardSnapshot();
+  return { rows, executedAt: snap.capturedAt, cached: true, source: "snapshot" };
 }
 
 /** Where /standing answers from right now, for /api/health. */
 export async function boardStatus(): Promise<{ source: Source | "none"; asOf: string | null }> {
-  if (config().DUNE_API_KEY) return { source: "dune", asOf: null };
   const snap = await loadSnapshot();
   return snap ? { source: "snapshot", asOf: snap.capturedAt } : { source: "none", asOf: null };
 }
