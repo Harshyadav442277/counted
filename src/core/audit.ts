@@ -27,6 +27,8 @@ import { decodeTag, judgeTag, type TagVerdict } from "./tags.js";
 export interface WalletVerdict {
   wallet: string;
   isContract: boolean;
+  /** False when the address lookup failed, so `isContract` is a default rather than an answer. */
+  contractKnown: boolean;
   name: string | null;
   activeBeforeWindow: boolean;
   activeInLookback: boolean;
@@ -38,6 +40,29 @@ export interface WalletVerdict {
   verifiedUser: boolean;
   countsAsSigner: boolean;
   reasons: string[];
+}
+
+/**
+ * Whether a counterparty counts, from what the explorer actually answered. An
+ * unresolved contract check is not a passed one: if the address lookup failed we
+ * cannot say the wallet is not a contract, so it counts as neither a verified user
+ * nor a signer until the check is re-run. Understating is the safe direction here —
+ * the product exists to be trusted when it says an activity counts.
+ */
+export function countsFor(o: {
+  activeInLookback: boolean;
+  isContract: boolean;
+  contractKnown: boolean;
+  ownWallet: boolean;
+  fundedByProject: boolean;
+  relayer: boolean;
+  noActivity: boolean;
+}): { verifiedUser: boolean; countsAsSigner: boolean } {
+  const excluded = o.ownWallet || o.relayer || o.fundedByProject || o.isContract || !o.contractKnown;
+  return {
+    verifiedUser: !excluded && o.activeInLookback,
+    countsAsSigner: !excluded && !o.noActivity,
+  };
 }
 
 export interface VerifyContext {
@@ -79,7 +104,11 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
   const wallet = lower(walletRaw);
   const own = new Set((ctx.ownWallets ?? []).map(lower));
   const [info, before, beforeTx] = await Promise.all([
-    addressInfo(wallet).catch(() => ({ address: wallet, isContract: false, name: null, celoUsd: null })),
+    // A failed lookup must not read as "not a contract": that default would promote
+    // an unanswered check into a passed one and credit a protocol contract as a user.
+    addressInfo(wallet)
+      .then((i) => ({ ...i, known: true }))
+      .catch(() => ({ address: wallet, isContract: false, name: null, celoUsd: null, known: false })),
     tokenTransfers(wallet, { beforeBlock: WINDOW_START_BLOCK, maxPages: 1 }),
     transactions(wallet, { beforeBlock: WINDOW_START_BLOCK, maxPages: 1 }),
   ]);
@@ -126,6 +155,10 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
     flags.push("contract");
     reasons.push(`This address is a contract${info.name ? ` (${info.name})` : ""}. Contracts are not users; trades against protocol contracts are excluded.`);
   }
+  if (!info.known) {
+    flags.push("contract-unknown");
+    reasons.push("The explorer could not answer whether this address is a contract, so it is counted as neither a verified user nor a signer. Run the check again in a few minutes.");
+  }
   if (wallet === lower(FACILITATOR_RELAYER)) {
     flags.push("relayer");
     reasons.push("This is the x402 facilitator relayer. It submits settlements for every project and is never a counterparty.");
@@ -139,12 +172,19 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
     reasons.push(`First funded by ${firstFunder}, which is one of the project's wallets. First-funder collapse excludes it.`);
   }
 
-  const verifiedUser = activeInLookback && !info.isContract && !own.has(wallet) && !flags.includes("funded-by-project") && !flags.includes("relayer");
-  const countsAsSigner = !own.has(wallet) && !flags.includes("relayer") && !info.isContract && !flags.includes("funded-by-project") && !flags.includes("no-activity");
+  const { verifiedUser, countsAsSigner } = countsFor({
+    activeInLookback,
+    isContract: info.isContract,
+    contractKnown: info.known,
+    ownWallet: own.has(wallet),
+    fundedByProject: flags.includes("funded-by-project"),
+    relayer: flags.includes("relayer"),
+    noActivity: flags.includes("no-activity"),
+  });
   if (verifiedUser) reasons.push("Counts as a verified user: independent, pre-existing, not a contract.");
   else if (countsAsSigner) reasons.push("Counts as a signer/authoriser and as a counterparty, but not as a verified user.");
 
-  return { wallet, isContract: info.isContract, name: info.name, activeBeforeWindow, activeInLookback, lastActivityBeforeWindow: latestBefore, firstSeen, firstFunder, firstFunderResolved, flags, verifiedUser, countsAsSigner, reasons };
+  return { wallet, isContract: info.isContract, contractKnown: info.known, name: info.name, activeBeforeWindow, activeInLookback, lastActivityBeforeWindow: latestBefore, firstSeen, firstFunder, firstFunderResolved, flags, verifiedUser, countsAsSigner, reasons };
 }
 
 export interface TagCheck {
@@ -448,6 +488,7 @@ export async function auditProject(
   const verifiedReturning = verified.filter((c) => c.days >= 2).length;
   const fresh = judged.filter((c) => c.verdict!.flags.includes("fresh")).length;
   const fundedByProject = judged.filter((c) => c.verdict!.flags.includes("funded-by-project")).length;
+  const contractUnknown = judged.filter((c) => c.verdict!.flags.includes("contract-unknown")).length;
   const grossUsd = counterparties.reduce((s, c) => s + c.usd, 0);
   const independentUsd = verified.reduce((s, c) => s + c.usd, 0);
   const gate = signerGate(verified.length);
@@ -494,6 +535,7 @@ export async function auditProject(
   }
   if (metrics.otherCodesSeen.length > 0 && tag) hints.push(`Some transactions carry other codes (${metrics.otherCodesSeen.join(", ")}) instead of ${tag}. Only the assigned code is credited.`);
   if (metrics.unverifiedCounterparties > 0) hints.push(`${metrics.unverifiedCounterparties} of ${inspect.length} inspected counterparties could not be verified (explorer rate limit or timeout); their volume is left out of the independent total. Run the audit again in a few minutes.`);
+  if (contractUnknown > 0) hints.push(`${contractUnknown} inspected counterparties could not be checked for contract status (explorer rate limit or timeout), so they are excluded from verified users, signers and the independent total. Run the audit again in a few minutes; the totals here are a lower bound.`);
   if (metrics.unknownAttributionTxs > 0) hints.push(`${metrics.unknownAttributionTxs} transactions could not be classified (calldata fetch cap of ${INPUT_FETCH_CAP} reached); they are excluded from the totals above.`);
   if (metrics.attributedTxs > 0 && verified.length === 0) hints.push("Zero verified users: none of the counterparties inspected had Celo activity in the 60 days before 28 Aug. Track 2 ranks verified users first; recruit wallets that already existed.");
   if (verified.length > 0 && verified.length < 20) {

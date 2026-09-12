@@ -1,5 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { classifyTx, signerGate, RULES } from "../src/core/audit.js";
+import { classifyTx, countsFor, signerGate, RULES } from "../src/core/audit.js";
+
+describe("who counts", () => {
+  const independent = {
+    activeInLookback: true,
+    isContract: false,
+    contractKnown: true,
+    ownWallet: false,
+    fundedByProject: false,
+    relayer: false,
+    noActivity: false,
+  };
+
+  it("counts an independent pre-existing wallet", () => {
+    expect(countsFor(independent)).toEqual({ verifiedUser: true, countsAsSigner: true });
+  });
+
+  it("never credits a wallet whose contract check the explorer did not answer", () => {
+    // The failure this guards: a failed lookup used to default to isContract:false,
+    // so an old protocol contract was reported as a verified user.
+    expect(countsFor({ ...independent, contractKnown: false })).toEqual({ verifiedUser: false, countsAsSigner: false });
+  });
+
+  it("excludes contracts, own wallets, the relayer and project-funded wallets", () => {
+    for (const o of [
+      { isContract: true },
+      { ownWallet: true },
+      { relayer: true },
+      { fundedByProject: true },
+    ]) {
+      expect(countsFor({ ...independent, ...o })).toEqual({ verifiedUser: false, countsAsSigner: false });
+    }
+  });
+
+  it("makes a fresh wallet a signer but not a verified user, and an empty one neither", () => {
+    expect(countsFor({ ...independent, activeInLookback: false })).toEqual({ verifiedUser: false, countsAsSigner: true });
+    expect(countsFor({ ...independent, activeInLookback: false, noActivity: true })).toEqual({ verifiedUser: false, countsAsSigner: false });
+  });
+});
 
 describe("transaction attribution", () => {
   it("credits x402 settlements regardless of calldata", () => {

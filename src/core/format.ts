@@ -22,7 +22,7 @@ export function walletVerdictHtml(v: WalletVerdict): string {
     `<code>${esc(v.wallet)}</code>${v.name ? ` (${esc(v.name)})` : ""}`,
     `active before 28 Aug: ${yn(v.activeBeforeWindow)}${v.lastActivityBeforeWindow ? ` (last ${esc(v.lastActivityBeforeWindow.slice(0, 10))})` : ""}`,
     `inside 60-day lookback: ${yn(v.activeInLookback)}`,
-    `contract: ${yn(v.isContract)}`,
+    `contract: ${v.contractKnown ? yn(v.isContract) : "unknown (explorer did not answer)"}`,
     v.firstSeen ? `first seen: ${esc(v.firstSeen.slice(0, 16))}Z` : null,
     v.firstFunder ? `first funder: <code>${esc(v.firstFunder)}</code>` : v.firstFunderResolved ? null : "first funder: not resolved (old wallet, or explorer cap)",
     v.flags.length ? `flags: ${esc(v.flags.join(", "))}` : null,
