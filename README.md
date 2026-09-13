@@ -10,6 +10,24 @@ x402 + MCP + Telegram rail from [telegraph-morse](https://github.com/Harshyadav4
 (Telegraph Hackathon, Sep 2026). The Celo work, the audit engine, the seller side of
 x402, fee abstraction and the pay page are the commits in this repository.
 
+## For judges: the five-minute path
+
+Everything below is on Celo mainnet (chain 42220) and checkable without trusting us.
+
+| Claim | Evidence |
+|---|---|
+| The agent has an on-chain identity and paid its own gas in a stablecoin | ERC-8004 Agent ID **9828**, [8004scan](https://8004scan.io/agents/celo/9828); mint tx [`0xdcf26b64…d525`](https://celoscan.io/tx/0xdcf26b64f2d241a0f4012ef4a84848099dbfd7ce7ff36a74aabf7e3c3849d525), `feeCurrency` = USA₮ adapter, the wallet has never held CELO |
+| Payments are real x402 settlements in USA₮ | end-to-end test settlement [`0x6692c55c…5576`](https://celoscan.io/tx/0x6692c55c0628686a9e14a602d6a334adcc0f8bee065fb69853c39efe257a5576): `transferWithAuthorization` relayed by the Celo facilitator, 0.05 USA₮, EIP-3009 signed by the buyer. Made from our own declared test wallet, so it is disclosed and excluded from every count |
+| Attribution tags are wired in | tagged transfer [`0x669eac17…042a`](https://celoscan.io/tx/0x669eac1782ae744c694815c71a9bf1ae8d6264f06a6740a283c66ddaecac042a), ERC-8021 suffix `celo_2806bab5cdcc`, gas in USA₮ |
+| Anyone can pay right now, three ways | [`/pay`](https://counted-gamma.vercel.app/pay?tool=verify) in a browser wallet · `npx @celo/buy curl` from an agent · [`/mcp`](https://counted-gamma.vercel.app/mcp) with six tools |
+| Buyers onboard without CELO or an exchange | one Self proof-of-personhood verification, then USA₮ from the Google Cloud faucet; the pay page signs one authorisation, the facilitator pays the gas |
+| The audit is the organisers' audit | the rules in `src/core/audit.ts` were checked against the published Dune SQL and corrected twice from the organisers' own answers (12 Sep); the free `/standing` shows any team's live row |
+
+What is new here is not the payment rail but what is sold over it: the leaderboard's own
+independence and pre-existing-wallet rules, reproduced from public explorer data and
+priced per check, so a builder learns *why* a counterparty does or does not count before
+the private audit does. Every paid answer is itself a USA₮ x402 settlement on Celo.
+
 ## The problem it solves
 
 The published scoring queries only count counterparties that are **independent**
