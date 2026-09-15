@@ -5,46 +5,100 @@ import type { CallRow, Stats } from "../core/ledger/types.js";
 import { howToPay, priceUsd } from "../core/x402.js";
 import { escapeHtml as e, page } from "./layout.js";
 
+const PASS = `<svg class="y" viewBox="0 0 16 16" aria-label="passes"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+const FAIL = `<svg class="n" viewBox="0 0 16 16" aria-label="fails"><path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+
+const TOOL_LABEL = { verify: "Verify a wallet", tagcheck: "Check the tag in a transaction", audit: "Audit a project wallet" } as const;
+type Tool = keyof typeof TOOL_LABEL;
+
+function toolOptions(selected: Tool): string {
+  return (Object.keys(TOOL_LABEL) as Tool[])
+    .map((t) => `<option value="${t}"${t === selected ? " selected" : ""}>${e(TOOL_LABEL[t])}, $${priceUsd(t).toFixed(2)}</option>`)
+    .join("");
+}
+
+function checkForm(o: { tool: Tool; tag: string | null; autofocus?: boolean }): string {
+  const wantsTx = o.tool === "tagcheck";
+  return `<form class="check" action="/pay" method="get" id="check">
+  <label class="wide">What to check<select name="tool">${toolOptions(o.tool)}</select></label>
+  <label class="wide">Wallet address or transaction hash<input class="addr" name="subject" required${o.autofocus ? " autofocus" : ""} autocomplete="off" spellcheck="false" placeholder="${wantsTx ? "0x… 64 hex characters" : "0x… 40 hex characters"}" pattern="0x[0-9a-fA-F]{40}|0x[0-9a-fA-F]{64}"></label>
+  <label>Your attribution tag, if you have one<input class="addr" name="tag" value="${e(o.tag ?? "")}" autocomplete="off" spellcheck="false" placeholder="celo_…"></label>
+  <button type="submit">Continue to payment</button>
+</form>`;
+}
+
+/**
+ * The hero's example is real: Counted's audit of its own test wallet, run on 15 Sep 2026.
+ * It is the one wallet whose truth we know, and it fails the way most do.
+ */
+const EXAMPLE = `<aside class="sheet" aria-label="Example verdict">
+<p class="who">0x5510…5726</p>
+<p class="src">Counted's own test wallet, as the audit saw it on 15 Sep 2026</p>
+<ul class="checks">
+  <li style="--i:0">${PASS}<div>Paid over x402<small>0.05 USA₮ settled on Celo mainnet, 11 Sep</small></div></li>
+  <li style="--i:1">${FAIL}<div>Moved a token between 29 Jun and 28 Aug<small>First seen 11 Sep, inside the counting window</small></div></li>
+  <li style="--i:2">${FAIL}<div>Not funded by the project<small>First funded by Counted's agent wallet</small></div></li>
+  <li style="--i:3">${PASS}<div>Not a contract</div></li>
+</ul>
+<div class="verdict"><b><span class="hl">Not counted</span></b><span class="note">Neither a verified user nor a signer</span></div>
+</aside>`;
+
 export function landingPage(o: { stats: Stats; recent: CallRow[]; ledgerKind: string }): string {
   const base = publicUrl();
   const c = config();
   const bot = c.TELEGRAM_BOT_USERNAME ? `https://t.me/${c.TELEGRAM_BOT_USERNAME}` : null;
   const how = howToPay("verify", base);
   const body = `
-<p class="lede">The Agents at Work leaderboard only counts counterparties that are <b>independent</b> and <b>moved a token on Celo between 29 June and 28 August</b>. Nobody can see that from a block explorer. Counted runs the organisers' audit on any wallet, transaction or project, and settles each check in USA₮ over x402.</p>
-<p class="sub">Verified users, returning users, signer gate, adjusted volume, attribution tags, stablecoin rails: the same checks the published Dune queries apply, run early enough to act on. ${paymentsEnabled() ? "" : '<span class="warn">Payments are not configured on this deployment yet.</span>'}</p>
-<div class="grid">
-  <div class="stat"><b>${o.stats.paidCalls}</b><span>paid checks</span></div>
-  <div class="stat"><b>${o.stats.payers}</b><span>distinct payers</span></div>
-  <div class="stat"><b>$${o.stats.revenueUsd.toFixed(2)}</b><span>settled over x402</span></div>
-  <div class="stat"><b>${o.stats.today.calls}</b><span>checks today</span></div>
+<div class="hero">
+<div>
+<h1>Does your Celo activity actually count?</h1>
+<p class="lede">The Agents at Work leaderboard only counts a user whose wallet moved a token on Celo between 29 June and 28 August and was never funded by your project. A block explorer can't show which of yours pass. Counted can, for $${priceUsd("verify").toFixed(2)} a wallet, paid over x402 on Celo mainnet.</p>
+${paymentsEnabled() ? "" : '<p class="warn">Payments are not configured on this deployment, so checks cannot be paid for yet.</p>'}
+${checkForm({ tool: "verify", tag: null })}
+<p class="small muted">Pay from a wallet that moved a token on Celo between 29 June and 28 August: that payment counts for you and for us. Need USA₮? Verify once in the <a href="https://self.xyz">Self app</a>, then claim from the <a href="https://cloud.google.com/application/web3/faucet/celo/mainnet">Google Cloud faucet</a>.</p>
 </div>
-<div class="panel" id="pay"><h2>Run a check</h2>
-<form class="row" action="/pay" method="get">
-  <select name="tool"><option value="verify">Verify a wallet ($${priceUsd("verify").toFixed(2)})</option><option value="tagcheck">Check a tag in a transaction ($${priceUsd("tagcheck").toFixed(2)})</option><option value="audit">Audit my project wallet ($${priceUsd("audit").toFixed(2)})</option></select>
-  <input name="subject" placeholder="0x… wallet or transaction hash" required pattern="0x[0-9a-fA-F]{40}(0x[0-9a-fA-F]{24})?|0x[0-9a-fA-F]{64}">
-  <input name="tag" placeholder="celo_… (optional)">
-  <button type="submit">Continue to payment</button>
-</form>
-<p class="muted">Pay from a wallet that moved a token on Celo between 29 June and 28 August: that is the one that counts as a verified user (the organisers confirmed that window on 12 September; contract calls alone do not qualify). Need USA₮? Verify once in the <a href="https://self.xyz">Self app</a> and claim from the <a href="https://cloud.google.com/application/web3/faucet/celo/mainnet">Google Cloud faucet</a>.</p>
+${EXAMPLE}
 </div>
-<div class="panel"><h2>Three ways to pay</h2>
-<ol class="steps">
-<li><b>Agents with <code>@celo/buy</code></b> (no CELO needed, gas is sponsored):<pre>${e(how.buyCurl)}</pre></li>
-<li><b>Any x402 v2 client</b>: GET <code>${e(base)}/api/verify?wallet=0x…</code>, <code>/api/tagcheck?tx=0x…</code>, <code>/api/audit?wallet=0x…</code>. The 402 lists USA₮, USDC and USD₮ on <code>eip155:42220</code>.</li>
-<li><b>Browser wallet</b>: the form above. MetaMask or Rabby signs an EIP-3009 authorisation; the facilitator settles it and pays the gas.</li>
-</ol>
-${bot ? `<p>In Telegram: <a href="${bot}">@${e(c.TELEGRAM_BOT_USERNAME)}</a> — <code>/standing celo_…</code> is free, paid checks post their result back into the chat.</p>` : ""}
-<p>MCP: <code>claude mcp add --transport http counted ${e(base)}/mcp</code></p>
+
+<section aria-labelledby="other-ways">
+<h2 id="other-ways">Run checks without the browser</h2>
+<div class="cols">
+<div><h3>Agents with <code>@celo/buy</code></h3><p class="muted">No CELO needed; the gas is sponsored.</p><pre>${e(how.buyCurl)}</pre></div>
+<div><h3>Any x402 v2 client</h3><p class="muted">Request <code>/api/verify?wallet=0x…</code>, <code>/api/tagcheck?tx=0x…</code> or <code>/api/audit?wallet=0x…</code>. The 402 response offers USA₮, USDC and USD₮ on <code>eip155:42220</code>.</p></div>
+<div><h3>MCP clients and Telegram</h3><pre>claude mcp add --transport http counted ${e(base)}/mcp</pre>${bot ? `<p class="muted">In <a href="${bot}">@${e(c.TELEGRAM_BOT_USERNAME)}</a>, <code>/standing celo_…</code> is free and paid checks post their result back into the chat.</p>` : ""}</div>
 </div>
-<div class="panel"><h2>What counts</h2><ul>${RULES.map((r) => `<li>${e(r)}</li>`).join("")}</ul><p class="muted">Sources: <a href="https://dune.com/celo/agents-at-work-hackathon">the live board and its SQL</a>, <a href="https://celobuilders.xyz/hackathons/agents-at-work/rules">the portal rules</a>.</p></div>
-<div class="panel"><h2>Ledger <span class="badge">${e(o.ledgerKind)}</span></h2>${ledgerTable(o.recent)}<p><a href="/ledger">All calls</a> · <a href="/api/ledger">JSON</a></p></div>`;
+</section>
+
+<section id="rules" aria-labelledby="rules-h">
+<h2 id="rules-h">What the leaderboard counts</h2>
+<ul class="rules">${RULES.map((r) => `<li>${e(r)}</li>`).join("")}</ul>
+<p class="small muted">Sources: <a href="https://dune.com/celo/agents-at-work-hackathon">the live leaderboard and its SQL</a> and <a href="https://celobuilders.xyz/hackathons/agents-at-work/rules">the portal rules</a>.</p>
+</section>
+
+<section aria-labelledby="ledger-h">
+<h2 id="ledger-h">Ledger</h2>
+<p class="muted">Every paid check, with the payer and the settlement transaction.</p>
+${figures(o.stats, [["paidCalls", "paid checks"], ["payers", "distinct payers"], ["revenue", "settled over x402"], ["today", "checks today"]])}
+${ledgerNote(o.ledgerKind)}${ledgerTable(o.recent)}
+<p class="links"><a href="/ledger">All calls</a><a href="/api/ledger">Ledger as JSON</a></p>
+</section>`;
   return page("Counted — does your Celo activity actually count?", body);
 }
 
+type Figure = "calls" | "paidCalls" | "payers" | "revenue" | "today";
+function figures(s: Stats, items: Array<[Figure, string]>): string {
+  const value = (f: Figure) =>
+    f === "revenue" ? `$${s.revenueUsd.toFixed(2)}` : f === "today" ? String(s.today.calls) : String(s[f]);
+  return `<div class="figures">${items.map(([f, label]) => `<div><b>${e(value(f))}</b><span>${e(label)}</span></div>`).join("")}</div>`;
+}
+
+function ledgerNote(kind: string): string {
+  return kind === "memory" ? `<p class="warn small">This ledger is held in memory on this deployment, so it empties when the server restarts.</p>` : "";
+}
+
 export function ledgerTable(rows: CallRow[]): string {
-  if (!rows.length) return `<p class="muted">No calls yet.</p>`;
-  return `<div class="tablewrap"><table><thead><tr><th>when (UTC)</th><th>tool</th><th>subject</th><th>paid</th><th>payer</th><th>settlement</th><th>result</th></tr></thead><tbody>${rows
+  if (!rows.length) return `<p class="muted">No calls yet. The first paid check will appear here with its settlement transaction.</p>`;
+  return `<div class="tablewrap"><table><thead><tr><th>When (UTC)</th><th>Check</th><th>Subject</th><th>Paid</th><th>Payer</th><th>Settlement</th><th>Result</th></tr></thead><tbody>${rows
     .map(
       (r) => `<tr><td class="mono">${e(r.at.slice(0, 16).replace("T", " "))}</td><td>${e(r.tool)}</td><td class="mono">${e(r.subject.slice(0, 12))}…</td><td>${r.paid ? `<span class="ok">$${(r.amountUsd ?? 0).toFixed(2)} ${e(r.asset ?? "")}</span>` : '<span class="muted">free</span>'}</td><td class="mono">${r.payer ? `<a href="https://celoscan.io/address/${e(r.payer)}">${e(r.payer.slice(0, 10))}…</a>` : ""}</td><td class="mono">${r.settlementTx ? `<a href="https://celoscan.io/tx/${e(r.settlementTx)}">${e(r.settlementTx.slice(0, 12))}…</a>` : ""}</td><td>${e(r.summary ?? "")}</td></tr>`,
     )
@@ -52,22 +106,24 @@ export function ledgerTable(rows: CallRow[]): string {
 }
 
 export function ledgerPage(o: { stats: Stats; rows: CallRow[]; ledgerKind: string }): string {
-  const body = `<p class="lede">Every call, newest first. Paid rows link to the settlement on Celoscan; the payer is the EIP-3009 authoriser, which is the signer the leaderboard counts.</p>
-<div class="grid"><div class="stat"><b>${o.stats.calls}</b><span>calls</span></div><div class="stat"><b>${o.stats.paidCalls}</b><span>paid</span></div><div class="stat"><b>${o.stats.payers}</b><span>payers</span></div><div class="stat"><b>$${o.stats.revenueUsd.toFixed(2)}</b><span>settled</span></div></div>
-<div class="panel"><h2>Calls <span class="badge">${e(o.ledgerKind)}</span></h2>${ledgerTable(o.rows)}</div>`;
+  const body = `<h1 class="page">Ledger</h1>
+<p class="lede">Every call, newest first. Paid rows link to their settlement on Celoscan. The payer is the wallet that signed the EIP-3009 authorisation, which is the signer the leaderboard counts.</p>
+${figures(o.stats, [["calls", "calls"], ["paidCalls", "paid"], ["payers", "payers"], ["revenue", "settled"]])}
+${ledgerNote(o.ledgerKind)}${ledgerTable(o.rows)}`;
   return page("Counted — ledger", body);
 }
 
 export function mcpInfoPage(): string {
   const base = publicUrl();
-  const body = `<p class="lede">Counted is also an MCP server. Six tools: rules and standing are free; verify, tagcheck and audit are paid over x402.</p>
-<div class="panel"><h2>Add it</h2><pre>claude mcp add --transport http counted ${e(base)}/mcp</pre>
-<p>Paid tools accept an optional <code>payment</code> argument: a base64 x402 v2 PaymentPayload (the same value an x402 client puts in <code>PAYMENT-SIGNATURE</code>). Without it they return the 402 terms plus a <code>buy</code> one-liner that pays them.</p></div>
-<div class="panel"><h2>Endpoints</h2><pre>GET ${e(base)}/api/verify?wallet=0x…&amp;own=0x…      $${priceUsd("verify").toFixed(2)}
+  const body = `<h1 class="page">Counted over MCP and HTTP</h1>
+<p class="lede">Six MCP tools. Rules and standing are free; verify, tagcheck and audit are paid over x402.</p>
+<section aria-labelledby="add-h"><h2 id="add-h">Add the server</h2><pre>claude mcp add --transport http counted ${e(base)}/mcp</pre>
+<p>Paid tools take an optional <code>payment</code> argument: a base64 x402 v2 PaymentPayload, the same value an x402 client sends in <code>PAYMENT-SIGNATURE</code>. Without it they return the 402 terms and a <code>buy</code> command that pays them.</p></section>
+<section aria-labelledby="ep-h"><h2 id="ep-h">HTTP endpoints</h2><pre>GET ${e(base)}/api/verify?wallet=0x…&amp;own=0x…      $${priceUsd("verify").toFixed(2)}
 GET ${e(base)}/api/tagcheck?tx=0x…&amp;tag=celo_…     $${priceUsd("tagcheck").toFixed(2)}
 GET ${e(base)}/api/audit?wallet=0x…&amp;tag=celo_…     $${priceUsd("audit").toFixed(2)}
 GET ${e(base)}/api/standing?tag=celo_…              free
-GET ${e(base)}/api/rules · /api/prices · /api/ledger · /api/health   free</pre></div>`;
+GET ${e(base)}/api/rules, /api/prices, /api/ledger, /api/health   free</pre></section>`;
   return page("Counted — MCP and API", body);
 }
 
@@ -76,30 +132,20 @@ GET ${e(base)}/api/rules · /api/prices · /api/ledger · /api/health   free</pr
  * site, so it has to be a usable page rather than a 400: ask for the thing that is
  * missing instead of refusing the request.
  */
-export function payPromptPage(o: { tool: "verify" | "tagcheck" | "audit"; tag: string | null }): string {
-  const wantsTx = o.tool === "tagcheck";
-  const label = { verify: "Verify a wallet", tagcheck: "Check a tag in a transaction", audit: "Audit a project wallet" }[o.tool];
-  const opts = (["verify", "tagcheck", "audit"] as const)
-    .map((t) => `<option value="${t}"${t === o.tool ? " selected" : ""}>${e({ verify: "Verify a wallet", tagcheck: "Check a tag in a transaction", audit: "Audit a project wallet" }[t])} ($${priceUsd(t).toFixed(2)})</option>`)
-    .join("");
+export function payPromptPage(o: { tool: Tool; tag: string | null }): string {
+  const label = TOOL_LABEL[o.tool];
   const body = `
-<p class="lede">${e(label)} — $${priceUsd(o.tool).toFixed(2)}, settled in USA₮, USDC or USD₮ over x402 on Celo mainnet.</p>
-<p class="sub">One thing missing: ${wantsTx ? "the transaction to look at" : "the wallet to check"}. Paste it below and the payment page opens next.</p>
-<div class="panel"><h2>Run a check</h2>
-<form class="row" action="/pay" method="get">
-  <select name="tool">${opts}</select>
-  <input name="subject" autofocus required placeholder="${wantsTx ? "0x… transaction hash (64 hex)" : "0x… wallet address (40 hex)"}" pattern="${wantsTx ? "0x[0-9a-fA-F]{64}" : "0x[0-9a-fA-F]{40}"}">
-  <input name="tag" value="${e(o.tag ?? "")}" placeholder="celo_… (optional)">
-  <button type="submit">Continue to payment</button>
-</form>
-<p class="muted">Pay from a wallet that moved a token on Celo between 29 June and 28 August: that is the one the leaderboard counts as a verified user.</p></div>
-<div class="panel"><h2>Prefer not to use a browser?</h2><pre>${e(howToPay(o.tool, publicUrl()).buyCurl)}</pre>
-<p class="muted">Or add the MCP server: <code>claude mcp add --transport http counted ${e(publicUrl())}/mcp</code></p></div>`;
+<h1 class="page">${e(label)}, $${priceUsd(o.tool).toFixed(2)}</h1>
+<p class="lede">Settled in USA₮, USDC or USD₮ over x402 on Celo mainnet. Paste ${o.tool === "tagcheck" ? "the transaction to look at" : "the wallet to check"} and the payment page opens next.</p>
+${checkForm({ tool: o.tool, tag: o.tag, autofocus: true })}
+<p class="small muted">Pay from a wallet that moved a token on Celo between 29 June and 28 August: that is the one the leaderboard counts as a verified user.</p>
+<section aria-labelledby="nobrowser-h"><h2 id="nobrowser-h">Without a browser</h2><pre>${e(howToPay(o.tool, publicUrl()).buyCurl)}</pre>
+<p class="muted">Or add the MCP server: <code>claude mcp add --transport http counted ${e(publicUrl())}/mcp</code></p></section>`;
   return page(`Counted — ${label.toLowerCase()}`, body);
 }
 
 /** The browser pay page: connect a wallet, sign EIP-3009, let the facilitator settle, show the result. */
-export function payPage(o: { tool: "verify" | "tagcheck" | "audit"; params: Record<string, string>; chat: string | null }): string {
+export function payPage(o: { tool: Tool; params: Record<string, string>; chat: string | null }): string {
   const base = publicUrl();
   const tokens = ["USAT", "USDC", "USDT"].map((k) => {
     const t = TOKENS[k]!;
@@ -108,38 +154,39 @@ export function payPage(o: { tool: "verify" | "tagcheck" | "audit"; params: Reco
   const query = new URLSearchParams({ ...o.params, ...(o.chat ? { chat: o.chat } : {}), via: "web" }).toString();
   const subject = o.params["wallet"] ?? o.params["tx"] ?? "";
   const body = `
-<p class="lede">${o.tool === "audit" ? "Audit" : o.tool === "tagcheck" ? "Tag check" : "Verify"} <code>${e(subject)}</code></p>
-<p class="sub">Price $${priceUsd(o.tool).toFixed(2)}. Your wallet signs a one-time EIP-3009 authorisation for exactly that amount; the Celo x402 facilitator submits it and pays the gas. No approval, no CELO needed.${o.chat ? " The result is also posted back into your Telegram chat." : ""}</p>
-<div class="panel"><h2>1. Choose the asset</h2>
-<div class="row" id="assets"></div>
-<p class="muted">USA₮ settled over x402 is the highest-scoring rail for the stablecoin bounty. Get USA₮ free after Self verification at the <a href="https://cloud.google.com/application/web3/faucet/celo/mainnet">Google Cloud faucet</a>.</p></div>
-<div class="panel"><h2>2. Pay and get the result</h2>
-<div class="row"><button id="pay" type="button">Connect wallet and pay</button><span id="status" class="muted">Reading the 402 terms…</span></div>
-<pre id="out" hidden></pre></div>
+<h1 class="page">${o.tool === "audit" ? "Audit" : o.tool === "tagcheck" ? "Tag check" : "Verify"}, $${priceUsd(o.tool).toFixed(2)}</h1>
+<p class="lede mono" style="font-size:16px;overflow-wrap:anywhere">${e(subject)}</p>
+<p>Your wallet signs a one-time EIP-3009 authorisation for exactly $${priceUsd(o.tool).toFixed(2)}. The Celo x402 facilitator submits it and pays the gas, so there is no approval and no CELO needed.${o.chat ? " The result is also posted back into your Telegram chat." : ""}</p>
+<div class="step"><div class="num">1</div><div><h2>Choose the asset</h2>
+<div class="choices" id="assets"></div>
+<p class="small muted">USA₮ settled over x402 scores highest for the stablecoin bounty. Get USA₮ free after Self verification at the <a href="https://cloud.google.com/application/web3/faucet/celo/mainnet">Google Cloud faucet</a>.</p></div></div>
+<div class="step"><div class="num">2</div><div><h2>Pay and get the result</h2>
+<div class="payrow"><button id="pay" type="button">Connect wallet and pay</button><span id="status" class="status muted" role="status">Reading the payment terms…</span></div>
+<pre id="out" hidden></pre></div></div>
 <script>
 (function(){
   var TOOL=${JSON.stringify(o.tool)}, QUERY=${JSON.stringify(query)}, TOKENS=${JSON.stringify(tokens)};
   var url='/api/'+TOOL+'?'+QUERY, terms=null, chosen=null;
   var $=function(id){return document.getElementById(id)};
-  function status(t,cls){var s=$('status');s.textContent=t;s.className=cls||'muted'}
+  function status(t,cls){var s=$('status');s.className='status '+(cls||'muted');if(cls==='ok'){var m=document.createElement('span');m.className='hl';m.textContent=t;s.replaceChildren(m)}else{s.textContent=t}}
   function show(obj){var o=$('out');o.hidden=false;o.textContent=typeof obj==='string'?obj:JSON.stringify(obj,null,2)}
   function b64(s){return btoa(unescape(encodeURIComponent(s)))}
   function ub64(s){return decodeURIComponent(escape(atob(s)))}
   function hexRandom(){var a=new Uint8Array(32);crypto.getRandomValues(a);return '0x'+Array.from(a).map(function(b){return b.toString(16).padStart(2,'0')}).join('')}
   async function loadTerms(){
     var r=await fetch(url,{headers:{accept:'application/json'}});
-    if(r.status!==402){status('This route did not ask for payment ('+r.status+').','warn');show(await r.text());return}
+    if(r.status!==402){status('This check did not ask for payment (HTTP '+r.status+').','warn');show(await r.text());return}
     var h=r.headers.get('PAYMENT-REQUIRED');
     terms=h?JSON.parse(ub64(h)):await r.json();
     var box=$('assets');box.replaceChildren();
     (terms.accepts||[]).forEach(function(req,i){
       var t=TOKENS.find(function(x){return x.address===String(req.asset).toLowerCase()});
-      var label=(t?t.symbol:req.asset.slice(0,8))+' · '+(Number(req.amount)/1e6).toFixed(2);
-      var b=document.createElement('button');b.type='button';b.textContent=label;b.dataset.i=i;
-      b.onclick=function(){chosen=req;Array.from(box.children).forEach(function(c){c.style.outline=''});b.style.outline='3px solid var(--fg)';status('Paying with '+label)};
+      var label=(t?t.symbol:req.asset.slice(0,8))+', '+(Number(req.amount)/1e6).toFixed(2);
+      var b=document.createElement('button');b.type='button';b.className='choice';b.textContent=label;b.setAttribute('aria-pressed','false');
+      b.onclick=function(){chosen=req;Array.from(box.children).forEach(function(c){c.setAttribute('aria-pressed','false')});b.setAttribute('aria-pressed','true');status('Paying with '+label)};
       box.appendChild(b);if(i===0)b.click();
     });
-    status('Terms loaded. Connect a wallet on Celo mainnet (MetaMask, Rabby).');
+    status('Terms loaded. Connect a wallet on Celo mainnet, such as MetaMask or Rabby.');
   }
   async function ensureChain(eth){
     var id=await eth.request({method:'eth_chainId'});
@@ -149,8 +196,8 @@ export function payPage(o: { tool: "verify" | "tagcheck" | "audit"; params: Reco
   }
   async function pay(){
     var eth=window.ethereum;
-    if(!eth){status('No browser wallet found. Install MetaMask or Rabby, or pay with buy / any x402 client.','bad');return}
-    if(!chosen){status('Pick an asset first.','warn');return}
+    if(!eth){status('No browser wallet found. Install MetaMask or Rabby, or pay with buy or any x402 client.','bad');return}
+    if(!chosen){status('Choose an asset first.','warn');return}
     $('pay').disabled=true;
     try{
       var accounts=await eth.request({method:'eth_requestAccounts'});var from=accounts[0];
@@ -171,13 +218,13 @@ export function payPage(o: { tool: "verify" | "tagcheck" | "audit"; params: Reco
       var body=await r.json().catch(function(){return {}});
       var pr=r.headers.get('PAYMENT-RESPONSE');var settle=pr?JSON.parse(ub64(pr)):null;
       if(r.ok){status('Settled.'+(settle&&settle.transaction?' Tx '+settle.transaction:''),'ok');show({settlement:settle,result:body})}
-      else{status('Payment did not go through ('+r.status+').','bad');show(body)}
+      else{status('The payment did not go through (HTTP '+r.status+'). The response is below.','bad');show(body)}
     }catch(err){status(err&&err.message?err.message:String(err),'bad')}
     $('pay').disabled=false;
   }
   $('pay').onclick=pay;loadTerms().catch(function(e){status(e.message,'bad')});
 })();
 </script>
-<p class="muted">Agents: <code>${e(howToPay(o.tool, base).buyCurl.replace("0x…", subject || "0x…"))}</code></p>`;
+<section aria-labelledby="agents-h"><h2 id="agents-h">Paying from an agent</h2><pre>${e(howToPay(o.tool, base).buyCurl.replace("0x…", subject || "0x…"))}</pre></section>`;
   return page(`Counted — pay $${priceUsd(o.tool).toFixed(2)} for ${o.tool}`, body);
 }
