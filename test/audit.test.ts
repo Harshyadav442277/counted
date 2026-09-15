@@ -9,6 +9,7 @@ describe("who counts", () => {
     ownWallet: false,
     fundedByProject: false,
     relayer: false,
+    system: false,
     noActivity: false,
   };
 
@@ -22,15 +23,23 @@ describe("who counts", () => {
     expect(countsFor({ ...independent, contractKnown: false })).toEqual({ verifiedUser: false, countsAsSigner: false });
   });
 
-  it("excludes contracts, own wallets, the relayer and project-funded wallets", () => {
+  it("excludes contracts, own wallets, the relayer, system addresses and project-funded wallets", () => {
     for (const o of [
       { isContract: true },
       { ownWallet: true },
       { relayer: true },
+      { system: true },
       { fundedByProject: true },
     ]) {
       expect(countsFor({ ...independent, ...o })).toEqual({ verifiedUser: false, countsAsSigner: false });
     }
+  });
+
+  it("treats Celo's fee-abstraction intermediary as a system address, not a user", () => {
+    // The failure this guards: every tx paying gas in USA₮ moves tokens through this
+    // address, and its pre-window history made the audit report it as a verified user.
+    expect(SYSTEM_ADDRESSES.has("0x000000000000000000000000000000000Ce106A5".toLowerCase())).toBe(true);
+    expect(SYSTEM_ADDRESSES.has("0x0000000000000000000000000000000000000000")).toBe(true);
   });
 
   it("makes a fresh wallet a signer but not a verified user, and an empty one neither", () => {
@@ -55,7 +64,7 @@ describe("transaction attribution", () => {
     expect(classifyTx({ x402: false, codes: null, tag: "celo_aaaaaaaaaaaa" })).toBe("unknown");
   });
 });
-import { LOOKBACK_START, WINDOW_END, WINDOW_START, WINDOW_START_BLOCK, usdFor } from "../src/core/chain.js";
+import { LOOKBACK_START, SYSTEM_ADDRESSES, WINDOW_END, WINDOW_START, WINDOW_START_BLOCK, usdFor } from "../src/core/chain.js";
 
 describe("signer gate", () => {
   it("matches the four points read off the live board", () => {
