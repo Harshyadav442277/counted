@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { config, paymentsEnabled, resetConfigForTests } from "../src/config.js";
 import { signChat, verifyChat } from "../src/core/ids.js";
+import { Hono, type MiddlewareHandler } from "hono";
 
 describe("signed chat tokens", () => {
   it("round-trips and rejects tampering", () => {
@@ -14,7 +15,7 @@ describe("signed chat tokens", () => {
     expect(verifyChat(signChat(-100200300, "s"), "s")).toBe("-100200300");
   });
 });
-import { paymentFromHeaders, paymentOptions, priceUsd, routesConfig, settlementFromHeader } from "../src/core/x402.js";
+import { paymentFromHeaders, paymentOptions, priceUsd, retryUnpaidOnFacilitatorError, routesConfig, settlementFromHeader } from "../src/core/x402.js";
 
 const WALLET = "0x1111111111111111111111111111111111111111";
 
@@ -82,5 +83,29 @@ describe("payment header decoding", () => {
     const s = settlementFromHeader(header);
     expect(s).toEqual({ success: true, transaction: "0xdeadbeef", payer: "0xabc", network: "eip155:42220" });
     expect(settlementFromHeader(null)).toBeNull();
+  });
+});
+
+describe("facilitator start-up retry", () => {
+  // A stand-in for the x402 middleware that fails its first facilitator sync, then quotes terms.
+  const flaky = () => {
+    let calls = 0;
+    const handler: MiddlewareHandler = async (c) => (++calls === 1 ? c.json({ error: "sync failed" }, 502) : c.json({}, 402));
+    return { handler, calls: () => calls };
+  };
+  const appWith = (mw: MiddlewareHandler) => new Hono().use("/api/*", mw).get("/api/verify", (c) => c.json({ ok: true }));
+
+  it("asks once more when a terms request hits a start-up 502", async () => {
+    const f = flaky();
+    const res = await appWith(retryUnpaidOnFacilitatorError(f.handler, 0)).request("/api/verify?wallet=0x1");
+    expect(res.status).toBe(402);
+    expect(f.calls()).toBe(2);
+  });
+
+  it("never retries a request that carries a payment", async () => {
+    const f = flaky();
+    const res = await appWith(retryUnpaidOnFacilitatorError(f.handler, 0)).request("/api/verify?wallet=0x1", { headers: { "PAYMENT-SIGNATURE": "e30=" } });
+    expect(res.status).toBe(502);
+    expect(f.calls()).toBe(1);
   });
 });

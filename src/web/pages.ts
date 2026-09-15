@@ -175,6 +175,8 @@ export function payPage(o: { tool: Tool; params: Record<string, string>; chat: s
   function hexRandom(){var a=new Uint8Array(32);crypto.getRandomValues(a);return '0x'+Array.from(a).map(function(b){return b.toString(16).padStart(2,'0')}).join('')}
   async function loadTerms(){
     var r=await fetch(url,{headers:{accept:'application/json'}});
+    if(r.status>=500){status('The payment service did not answer. Trying again…');await new Promise(function(ok){setTimeout(ok,1500)});r=await fetch(url,{headers:{accept:'application/json'}})}
+    if(r.status>=500){status('The payment service is not answering (HTTP '+r.status+'). Reload the page in a minute.','bad');return}
     if(r.status!==402){status('This check did not ask for payment (HTTP '+r.status+').','warn');show(await r.text());return}
     var h=r.headers.get('PAYMENT-REQUIRED');
     terms=h?JSON.parse(ub64(h)):await r.json();

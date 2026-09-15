@@ -77,8 +77,26 @@ export function x402Middleware(): MiddlewareHandler | null {
   // server never fetches the facilitator's supported kinds, so every paid route 500s
   // with "Facilitator does not support exact on eip155:42220". The sync is lazy and
   // awaited on the first paid request, so it costs one round trip per cold start.
-  middleware = paymentMiddleware(routesConfig(), server, undefined, undefined, true);
+  middleware = retryUnpaidOnFacilitatorError(paymentMiddleware(routesConfig(), server, undefined, undefined, true));
   return middleware;
+}
+
+/**
+ * On a cold start the first paid-route request waits for that facilitator sync, and if the
+ * sync fails the middleware answers 502 and resets, so the next request succeeds. Twice
+ * that 502 was the first thing the pay page saw after a deploy. A request that carries no
+ * payment only asks for the terms, so trying it once more is free and cannot charge anyone;
+ * a request that carries a payment is never retried here, because a facilitator error
+ * during settlement is an indeterminate outcome, not a failed one.
+ */
+export function retryUnpaidOnFacilitatorError(inner: MiddlewareHandler, delayMs = 400): MiddlewareHandler {
+  return async (c, next) => {
+    const first = await inner(c, next);
+    const carriesPayment = Boolean(c.req.header("payment-signature") ?? c.req.header("x-payment"));
+    if (!(first instanceof Response) || first.status !== 502 || carriesPayment) return first;
+    await new Promise((r) => setTimeout(r, delayMs));
+    return inner(c, next);
+  };
 }
 
 function b64decode(s: string): string {
