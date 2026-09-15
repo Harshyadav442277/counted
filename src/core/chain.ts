@@ -94,6 +94,17 @@ export const NAMED_STABLES: Record<string, string> = {
 /** The x402 facilitator's relayer: the tx sender on every settlement, never the user. */
 export const FACILITATOR_RELAYER: Address = "0x0d74D5Cefd2e7F24E623330ebE3d8D4cB45fFB48";
 
+/**
+ * Addresses that show up in token transfers without being anyone's counterparty. Celo's
+ * fee abstraction debits ERC-20 gas to `0x…ce106a5`, pays the fee handler from it and
+ * refunds the rest through it, so it sits in every stablecoin-gas transaction and has
+ * moved tokens every day since long before the window. The zero address mints and burns.
+ */
+export const SYSTEM_ADDRESSES: ReadonlySet<string> = new Set([
+  "0x000000000000000000000000000000000ce106a5",
+  "0x0000000000000000000000000000000000000000",
+]);
+
 export const ERC8004_IDENTITY: Address = "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432";
 
 /** Symbols the audit prices at exactly one dollar. */

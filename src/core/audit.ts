@@ -3,6 +3,7 @@ import {
   FACILITATOR_RELAYER,
   LOOKBACK_START,
   NAMED_STABLES,
+  SYSTEM_ADDRESSES,
   WINDOW_END,
   WINDOW_START,
   WINDOW_START_BLOCK,
@@ -58,9 +59,10 @@ export function countsFor(o: {
   ownWallet: boolean;
   fundedByProject: boolean;
   relayer: boolean;
+  system: boolean;
   noActivity: boolean;
 }): { verifiedUser: boolean; countsAsSigner: boolean } {
-  const excluded = o.ownWallet || o.relayer || o.fundedByProject || o.isContract || !o.contractKnown;
+  const excluded = o.ownWallet || o.relayer || o.system || o.fundedByProject || o.isContract || !o.contractKnown;
   return {
     verifiedUser: !excluded && o.activeInLookback,
     countsAsSigner: !excluded && !o.noActivity,
@@ -171,6 +173,10 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
     flags.push("relayer");
     reasons.push("This is the x402 facilitator relayer. It submits settlements for every project and is never a counterparty.");
   }
+  if (SYSTEM_ADDRESSES.has(wallet)) {
+    flags.push("system");
+    reasons.push("This is a Celo system address (fee-abstraction gas intermediary or the zero address). It appears in other people's transactions and is never a user, however old its activity.");
+  }
   if (own.has(wallet)) {
     flags.push("own-wallet");
     reasons.push("This is one of the project's own registered wallets. A project's own wallets are not its users.");
@@ -187,6 +193,7 @@ export async function verifyWallet(walletRaw: string, ctx: VerifyContext = {}): 
     ownWallet: own.has(wallet),
     fundedByProject: flags.includes("funded-by-project"),
     relayer: flags.includes("relayer"),
+    system: flags.includes("system"),
     noActivity: flags.includes("no-activity"),
   });
   if (verifiedUser) reasons.push("Counts as a verified user: independent, pre-existing, not a contract.");
@@ -421,7 +428,7 @@ export async function auditProject(
   const aggs = new Map<string, Agg>();
   const unattributed = { hashes: new Set<string>(), usdByHash: new Map<string, number>(), counterparties: new Set<string>() };
   const touch = (cp: string, hash: string, at: string, usd: number | null, token: string, x402: boolean) => {
-    if (own.has(cp) || cp === payTo) return;
+    if (own.has(cp) || cp === payTo || SYSTEM_ADDRESSES.has(cp)) return;
     if (!attributed(hash)) {
       unattributed.hashes.add(hash);
       unattributed.counterparties.add(cp);
