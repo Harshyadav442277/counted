@@ -13,6 +13,8 @@ x402, fee abstraction and the pay page are the commits in this repository.
 ## For judges: the five-minute path
 
 Everything below is on Celo mainnet (chain 42220) and checkable without trusting us.
+The [two-minute demo video](https://re93yrk9vvzb1ubh.public.blob.vercel-storage.com/demo/counted-demo.mp4)
+(captions, no sound) walks through the same evidence.
 
 | Claim | Evidence |
 |---|---|
