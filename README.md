@@ -42,7 +42,7 @@ wiring mistake. Counted reproduces the audit from public explorer data:
 |---|---|---|
 | `verify` | Does this wallet count as a verified user? Pre-28-Aug history, 60-day lookback, first funder, contract, own-wallet flags, with reasons. | $0.05 |
 | `tagcheck` | Is the assigned ERC-8021 attribution tag in this transaction, and is it inside the counting window? | $0.05 |
-| `audit` | Full pre-submission audit of a payTo wallet: every counterparty classified, verified and returning users, signer gate, adjusted volume, stablecoin and x402 flags, and what would change your rank. | $1.00 |
+| `audit` | Full pre-submission audit of a payTo wallet: every counterparty classified, verified and returning users, signer gate, adjusted volume, stablecoin and x402 flags, and what would change your rank. | $0.10 |
 | `standing` | Your live row on the three published Dune queries, with position among eligible projects. | free |
 | `rules` | The scoring rules in plain words. | free |
 
